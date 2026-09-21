@@ -1,56 +1,41 @@
-# Goal: Real-data cryptocurrency scam detection with graph neural networks
-
-Status: Initial proposal based on project discussions; data access and final experiment scope remain to be verified.
+# Goal: Early prediction of Ethereum token-project failure
 
 ## Purpose
 
-Build and evaluate a GNN-based cryptocurrency scam detector using real blockchain activity. Produce multiple informative diagrams that explain the data, scam behavior, model performance and failure cases. The intended users are blockchain security analysts who need to prioritize suspicious activity for investigation.
-
-The project should go beyond reproducing a standard classification benchmark. Public datasets contain real data and may supply labels or transaction records, but downloading a prepared benchmark and repeating its existing task is not the intended contribution. We will construct a documented study cohort from real transactions and independently sourced scam evidence where feasible, then evaluate a concrete operational question.
+Build models that predict whether a newly launched Ethereum token project will fail, using only early transaction and liquidity information. The intended users are analysts and traders screening new or obscure tokens. This is a risk-screening study, not investment advice, price prediction, or fraud detection.
 
 ## Main research question
 
-How does a fine-tuned GNN perform when transaction history is limited and evaluation involves later, previously unseen scam campaigns, and does graph information improve detection over account-level or contract-level features?
+Can early transaction and liquidity history predict whether a newly launched Ethereum token project will fail within the next 90 days, and does graph information improve prediction over token-level historical features?
 
-Supporting questions:
+## Operational definition of failure
 
-- Does self-supervised pretraining help compared with the same GNN trained from scratch, particularly with fewer training labels?
-- Which supported scam types are detected reliably, and which produce false negatives or false positives?
-- How much history is necessary to produce useful alerts at a controlled false-positive rate or analyst review budget?
+We define failure as entering a 90-day inactivity period:
 
-These questions are research directions, not claims of novelty already established by a literature review.
+- `t0` is the first qualifying decentralized-exchange liquidity or swap event for the token.
+- The primary observation cutoff is after the first 10 qualifying swap events, if the token reaches that window.
+- A token is labelled `failure` if it has no qualifying decentralized-exchange swap or liquidity event during the following 90 consecutive days.
+- A token is labelled `continued_activity` if it has qualifying activity during that follow-up period.
+- A token is `censored` or `uncertain` when complete follow-up or reliable activity evidence is unavailable; these cases are not silently treated as successes.
 
-## Scope
+Qualifying activity and thresholds must be frozen from the data audit before modelling. Ordinary wallet transfers, airdrops, price changes, and isolated automated transactions do not count by themselves. Failure describes observable inactivity, not malicious intent.
 
-Start with Ethereum so transactions can be aligned within one chain. Aim to investigate phishing, Ponzi schemes, rug pulls and honeypots. Quantitative coverage depends on label quality, compatible prediction units and available timestamps; do not promise a four-class classifier before the data audit.
+## Scope and claims
 
-Phishing labels may describe addresses, Ponzi labels contracts, and rug-pull or honeypot labels tokens or pools. Define each target explicitly. Use separate tasks or a justified heterogeneous representation when the units differ. Do not merge these labels into interchangeable classes.
+Start with Ethereum tokens traded on identifiable decentralized exchanges and liquidity pools. The prediction unit is the token contract. Compare the first-10-swap history with 5, 25, and 50 swaps where support permits. Keep post-cutoff information out of features. Tokens without enough history for a window are reported as ineligible.
 
-Use historical real transactions, contract metadata and, where available, liquidity events. Public datasets are candidate inputs, not the sole definition of the project. Additional collection through blockchain RPC or explorer APIs is an option subject to access, cost and coverage. New collection and public-data reuse are both acceptable; neither alone establishes originality.
-
-## Claims we can support
-
-The default objective is scam detection with limited observed history. A claim of warning before a scam occurs requires verified event timestamps and features restricted to information available before that event. A report timestamp is not necessarily the scam onset time. If these timestamps are unavailable, label the experiment as limited-history or retrospective detection.
-
-A successful project need not beat every baseline. It must produce a reproducible comparison and explain when graph learning or pretraining helps, fails or adds unnecessary complexity.
+The project may claim an association between early on-chain activity and later 90-day inactivity under the documented cohort and split protocol. It must not claim guaranteed survival, fraud, price direction, or investment suitability.
 
 ## Deliverables and acceptance criteria
 
-1. A source and label audit with provenance, licenses, access constraints, entity definitions, time coverage and unknowns.
-2. A documented study cohort and reproducible graph construction from real transactions, with versioned data manifests and split definitions.
-3. Feature-only baselines, a GNN trained from scratch, and a pretrained GNN fine-tuned on scam labels, evaluated under the same protocol.
-4. Held-out results with class support, per-type metrics where valid, three random seeds when feasible, error analysis and explicit leakage checks.
-5. At least six useful figures, including transaction neighborhoods, limited-history performance and baseline comparisons. All empirical plots must come from actual data or measured results.
-6. A short report and presentation explaining motivation, methods, evidence, limitations and privacy considerations; runnable scripts or notebooks with environment instructions.
+1. Source, schema, label, license, access, and limitation audit.
+2. Reproducible token cohort with immutable raw snapshots, processed event tables, censoring records, and a versioned manifest.
+3. Deterministic chronological split with duplicate, campaign, and neighborhood-overlap checks.
+4. Activity heuristic, feature baseline, scratch GNN, and pretrained GNN only if data and compute support it.
+5. Locked test results with prevalence, support, average precision, precision, recall, F1, false-positive rate, and precision at a stated review budget.
+6. Sensitivity analyses for history length, activity thresholds, and time periods where support permits.
+7. At least six data-based figures, report, presentation, reproducibility instructions, and limitations covering censoring, market dependence, uncertain labels, and false alarms.
 
 ## Boundaries
 
-No live trading, investment recommendations, automatic blocking, public accusations or promised detection accuracy. Unknown accounts are not confirmed benign. Model scores are investigative evidence, not proof of fraud. Synthetic examples may illustrate mechanisms but cannot substitute for real evaluation data.
-
-## Decisions still open
-
-- Exact core dataset/cohort, date range and accessible transaction source.
-- Which scam types have enough independent evidence and compatible data for evaluation.
-- Final prediction unit, history windows, split dates, label budget and graph size.
-- Whether independent historical contract/liquidity features are available for a combined model.
-- Whether the course requires original data collection in addition to a new analysis; verify before freezing scope.
+No live trading, token recommendations, automatic blocking, public accusations, or claims that inactivity proves fraud. Unknown and censored tokens are not confirmed healthy. Model scores are screening evidence only.

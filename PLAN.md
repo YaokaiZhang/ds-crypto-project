@@ -1,105 +1,62 @@
-# Plan: Cryptocurrency scam detection mini-project
+# Plan: Early prediction of Ethereum token-project failure
 
-This plan implements [GOAL.md](GOAL.md). It is a five-week sequence of milestones, not a claim that collection or experiments have already been completed. Shift the schedule to the actual course deadlines.
+This plan implements [GOAL.md](GOAL.md). It is a five-week data-analysis project. The model predicts the operationally defined outcome of 90-day inactivity; it does not infer fraud or provide investment advice.
 
-## 1. Establish feasibility and contribution — slice 1
+## 1. Freeze the task and establish feasibility - week 1
 
-### Review the closest prior work
+- Select Ethereum DEX and liquidity sources with documented access, licenses, timestamps, and event fields.
+- Define `t0` as the first qualifying liquidity or swap event.
+- Define the primary window as the first 10 qualifying swaps, with 5, 25, and 50 as optional sensitivity windows.
+- Freeze the 90-day follow-up, qualifying-activity rules, minimum fields, and treatment of multiple pools before modelling.
+- Exclude incomplete follow-up as censored rather than calling it successful.
+- Audit retrieval date, license, schema, coverage, time range, missingness, cost, and collection bias.
 
-Compare existing work on temporal scam detection, limited-history prediction, unseen campaigns, GNN pretraining and multiple scam categories. Record each paper's prediction unit, sources, split protocol, historical feature availability, baselines and limitations. State precisely how our experiment differs; do not claim that early detection itself is new.
+Create separate tables for token entities, raw events, outcomes, censoring reasons, and splits. Preserve raw events and source identifiers. Pilot 50-100 candidate tokens across launch periods and activity levels. Check that both outcome classes and chronological train/validation/test support exist.
 
-Candidate sources previously discussed (discovery pointers, not verified downloads):
+**Go/no-go gate:** continue only if histories and the failure endpoint are reproducible with adequate class support. Reduce to one source and one history window if necessary.
 
-- XBlock: https://www.xblock.pro/ — phishing transaction networks and Ponzi label resources.
-- Ethereum Ponzi repository: https://github.com/blockchain-unica/ethereum-ponzi — supplementary contract labels and research material.
-- TokenScout paper: https://cactilab.github.io/assets/pdf/3658644.3690234.pdf — token-level rug-pull, honeypot and Ponzi research; usable dataset access is unconfirmed.
-- TMRugPull: https://arxiv.org/abs/2602.21529 — investigate temporally constrained project-level data; graph suitability and access need checking.
-- Token Sniffer documentation: https://tokensniffer.readme.io/reference/response — candidate contract and liquidity signals; historical availability, API terms and costs must be checked. Current scores cannot stand in for historical observations.
+## 2. Build the data product and EDA - week 2
 
-### Audit real data and label evidence
+- Preserve immutable raw snapshots and processed event tables, preferably Parquet.
+- Normalize addresses and timestamps while retaining transaction and event identifiers.
+- Deduplicate using transaction and log identifiers.
+- Aggregate qualifying activity across pools while retaining pool-level details.
+- Build pre-cutoff features: event counts, buy/sell balance, counterparties, liquidity changes, volume summaries, concentration, time gaps, and deployer/funding relationships where available.
+- Construct bounded token-centered directed graphs and document node types, edges, sampling, and edge attributes.
+- Fit transformations on training data only; exclude post-cutoff activity, outcome fields, and label-revealing identifiers.
 
-For each source, record access method, license, retrieval date, chain, entity type, raw fields, time range, label meaning, class counts, missing timestamps and estimated collection/storage costs. Retain the original category and evidence rather than silently normalizing away disagreement.
+Deliver EDA on launch volume, class balance, censoring, missingness, follow-up coverage, activity distributions, liquidity trajectories, and representative neighborhoods. Check whether source, launch period, or observation duration trivially identifies failure.
 
-Create separate tables for:
+## 3. Freeze evaluation and leakage controls - week 2-3
 
-- Entities: chain, address, entity type, deployment/first-seen time, source.
-- Events: transaction hash, block/time, sender, receiver, asset contract, raw amount, decimals and event/log index; trace identifier where relevant.
-- Labels: target entity, scam type, evidence source, event time, report time, label availability time, confidence and disagreement status. Keep unavailable times explicitly missing.
-- Cohorts/splits: target, observation cutoff, campaign identifier where supported, partition and exclusion reason.
+- Use chronological partitions and keep all snapshots of a token together.
+- Group duplicate contracts, known related launches, and strongly overlapping target neighborhoods where evidence supports it.
+- Produce a deterministic `split_manifest` containing token, cutoff, follow-up end, label, censoring status, overlap group, partition, and exclusion reason.
+- Audit shared deployers, funding wallets, pools, bytecode, and counterparty overlap. Report retained overlap and group or exclude severe near-duplicates.
+- Keep post-cutoff edges and outcomes out of supervised training. State whether unlabeled pretraining is restricted to training-period history.
+- Fit normalization, feature selection, and thresholds on training/validation data only. Lock the test set.
 
-Do not equate one address with one person. Deduplicate reports of the same incident. Keep automated/heuristic labels distinct from independently corroborated outcomes. A liquidity withdrawal alone is not sufficient proof of a rug pull.
+Report average precision, precision, recall, macro-F1, false-positive rate, support, test prevalence, and precision at a fixed review budget. Use three seeds when feasible. Resample independent token or overlap groups for uncertainty, not individual events.
 
-### Build a pilot cohort
+## 4. Baselines and models - week 3-4
 
-Aim for roughly 100 manually inspected target entities across supported scam and comparator groups, with bounded transaction neighborhoods. This pilot tests feasibility; it is not the final training sample or a prevalence estimate. Include source-labeled non-scam examples with comparable time, activity and entity type, and audit their evidence. Leave unresolved cases unknown.
+1. Implement a simple activity or liquidity heuristic.
+2. Train logistic regression and gradient boosting on historical token features.
+3. Train a small GraphSAGE model from scratch using the same cutoff and targets.
+4. If data and compute support it, pretrain the encoder on training-period graph structure and fine-tune with failure labels.
+5. Use class weighting or calibrated sampling only in training and select thresholds on validation data.
+6. Run history-window, activity-threshold, and launch-period sensitivity analyses only where support is adequate.
 
-Collect or reconstruct their histories, trace several examples back to the original evidence, and draw small labeled neighborhoods. Check whether the intended history windows and future/campaign evaluation can actually be implemented.
+Save configurations, manifests, checkpoints, metrics, seeds, software versions, runtime, memory, and negative results. Inspect false alarms from legitimate but inactive projects and market-wide activity effects.
 
-**Gate:** freeze the core task only after documenting available data and the proposed contribution. If only one category is feasible, report measured coverage for that category and retain other categories as case studies. If only a packaged benchmark is usable, explicitly acknowledge the reduced scope rather than quietly presenting it as original collection.
+## 5. Interpret and deliver - week 5
 
-## 2. Construct the cohort, graph and EDA — slice 2
+Required figures: data/label pipeline; cohort, censoring, and failure counts; chronological split; early activity and liquidity distributions; representative neighborhoods; performance versus history with eligibility counts; precision-recall curves and confusion matrices; and model comparison.
 
-- Preserve immutable raw snapshots; write processed tables separately, preferably Parquet. Record download/query parameters, hashes, date ranges, versions and label provenance. Keep secrets out of source control.
-- Normalize addresses while preserving chain identity; validate timestamps and token decimals. Deduplicate using transaction/event identifiers, not merely sender and receiver.
-- Separate native transfers, token transfers, approvals, swaps and liquidity events. A transaction may create multiple transfers; approvals are permissions, not asset transfers.
-- Keep assets distinct. Use raw integers and decimals; only calculate fiat-valued features if a suitable historical price source is available.
-- Define directed address/contract graphs for address tasks. Token or pool tasks require explicit graph-level targets or a documented heterogeneous graph.
-- Engineer historical in/out counts, degree, counterparties, value summaries, account age and activity timing. Add contract or liquidity features only when their value at the prediction cutoff can be established.
-- Use bounded neighborhoods and document sampling. Exclude IDs, scam tags, report-derived flags and post-cutoff graph edges from predictive features.
-- Fit transformations on training data only. Unknown nodes may provide context but do not become benign labels.
+Explain that the outcome is inactivity, not proof of fraud. Discuss market regimes, uncertain negatives, censoring, source bias, graph overlap, class imbalance, and the danger of presenting a score as a buy/sell recommendation. For traders, describe a screening aid for new or obscure tokens; for analysts, describe ranked cases with historical evidence.
 
-Deliver EDA covering class/source counts, missingness, time coverage, degree/value distributions and representative transaction neighborhoods. Audit whether collection source, entity type or observation duration trivially identifies the class.
-
-## 3. Freeze the evaluation protocol before modeling — slice 3
-
-### Prediction snapshots
-
-Compare first 5, 10, 25 and 50 target transactions if supported; distinguish transactions from token-transfer events. Apply the target cutoff to all neighborhood edges and features. Keep cohorts comparable across windows, report eligibility/attrition, and avoid interpreting survival to 50 transactions as representative of all targets. Consider fixed elapsed-time windows if transaction counts create severe selection bias.
-
-Use the same available snapshot information for every model. If pre-event detection is feasible, additionally evaluate lead time against independently established incident times. Otherwise explicitly limit claims to early observed history.
-
-### Partitions and leakage
-
-Prefer chronological partitions with campaign-disjoint targets where campaign evidence exists. Choose dates from observed coverage and class support; approximately 70/15/15 is only an initial size guide. Keep repeated snapshots of a target in one partition. Do not invent campaign identities where none exist; state the resulting generalization limitation.
-
-Ensure training labels were available by the training cutoff for a deployment-style experiment. Otherwise describe the evaluation as retrospective. Exclude held-out targets and their incident edges from inductive pretraining/training. At test time, use only permitted historical context; shared historical counterparties can remain if documented. Audit duplicate and near-duplicate target neighborhoods across partitions.
-
-Tune hyperparameters and alert thresholds on validation data only. Evaluate a locked test set once after model selection. Any separate random-split comparison is diagnostic, not the headline deployment estimate.
-
-### Metrics
-
-Report average precision (explicitly identify this PR-summary convention), macro-F1, per-type precision/recall, false-positive rate, confusion matrices and support counts. Include recall at a validation-selected false-positive-rate target or precision/recall at a fixed review budget; report the achieved test false-positive rate rather than guaranteeing it.
-
-Preserve and disclose test prevalence. A balanced pilot cannot establish real-world alert precision. Summarize repeated seeds with mean and standard deviation; these are not population confidence intervals. If using bootstrap uncertainty, resample independent targets or campaigns rather than overlapping edges.
-
-## 4. Train, pretrain and fine-tune — slice 4
-
-1. Train logistic regression and gradient boosting on the same historical target-level features.
-2. Train a small GraphSAGE model from scratch, using neighbor sampling and early stopping. Document how directed transfers and amounts enter the model: plain GraphSAGE does not automatically use edge attributes. Incoming/outgoing aggregates provide an initial baseline; explicitly document any symmetrization.
-3. Pretrain the same encoder using self-supervised link prediction or graph contrastive learning on training-only history, then fine-tune it and its classifier using training scam labels. Link-prediction nonedges are reconstruction negatives, not non-scam labels.
-4. Compare pretrained and scratch models under equal supervised data and a disclosed tuning/compute budget. Add a small training-label-budget ablation if feasible. No compatible public pretrained checkpoint is assumed.
-5. Use class-weighted loss, a small validation search and three seeds when feasible. Prioritize sound splits over adding architectures.
-6. If compatible historical code/liquidity features exist, compare feature-only, graph-only and combined models with identical targets and independent outcomes. Do not train on Token Sniffer flags and claim independent validation by testing against the same flags.
-
-Save configurations, split manifests, checkpoints, metrics, seeds, software versions, runtime and memory usage. Record negative results and false alarms, including exchange-like activity that resembles scams.
-
-## 5. Figures, interpretation and delivery — slice 5
-
-Planned figures:
-
-1. Data-source and modeling pipeline diagram.
-2. Scam category, label source and unknown-label counts.
-3. Temporal coverage and chronological split diagram.
-4. Degree, value and activity distributions by supported class.
-5. Small transaction neighborhoods for scams, comparators and errors.
-6. Detection performance versus available history, with eligible sample counts.
-7. Per-type precision-recall curves and confusion matrices where applicable.
-8. Baseline, scratch-GNN and fine-tuned-GNN comparisons.
-
-Optional: performance across time periods and training-label budgets, plus an interactive viewer filtering by time, score and category. Clearly distinguish known labels from predictions. Explanations or highlighted neighbors are not causal proof.
-
-Deliver the report, slides, reproducibility instructions and data/model documentation. Mask addresses in public examples where identification is unnecessary, avoid victim narratives, honor source licenses and review university data-handling guidance. Discuss source bias, uncertain negatives, class imbalance and harms from false accusations.
+Deliver the report, slides, reproducibility instructions, data dictionary, model documentation, and a clear list of what the model cannot establish.
 
 ## Immediate next milestone
 
-Produce a source-feasibility matrix and the audited pilot cohort with several real transaction graphs. Only then freeze the category coverage, target definition and historical evaluation protocol. Model implementation follows this decision.
+Produce the source-feasibility matrix, event schema, failure-label specification, and audited pilot cohort. Do not implement the GNN until 90-day follow-up, class support, and the chronological split are feasible.
