@@ -1,0 +1,10 @@
+data
+.venv
+tests
+uv.lock
+pyproject.toml
+.env
+logs
+config
+__pycache__
+.pytest_cache
