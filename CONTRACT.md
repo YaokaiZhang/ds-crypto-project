@@ -1,0 +1,68 @@
+# Project Contract
+
+This is the short governing contract for the whole project. Detailed rules,
+schemas, procedures, and run results live in the referenced documents.
+
+## Read first
+
+- `GOAL.md`: purpose, scope, claims, and deliverables.
+- `PLAN.md`: project stages, model sequence, leakage controls, and gates.
+- `config/label_specification.json`: primary and sensitivity label rules.
+- `config/event_schema.json`: normalized event fields and identifiers.
+- `config/market_context_schema.json`: point-in-time market features.
+- `docs/COHORT_SAMPLING_AND_CLASS_BALANCE.md`: candidate sampling and quotas.
+- `docs/DATA_ENGINEERING_WORKFLOW.md`: Parquet, SQL, DuckDB, and data checks.
+- `docs/WEEK1_GRAPH_VOLUME_LABELS.md`: label rationale and source evidence.
+
+## Non-negotiable rules
+
+- Study Ethereum token contracts in a fixed, documented set of selected DEX
+  pools; use one canonical row per token.
+- Define `t0` from the earliest selected-pool creation, with the documented
+  activity fallback. Use the first 7 days for features and the following
+  complete 90 days for the primary outcome.
+- `low_volume_dead` means selected-pool swap volume below USD 1,000;
+  `continued_activity` means at least USD 1,000. Swaps alone count toward
+  volume. Use historical positive `amountUSD`; do not backfill current prices.
+- Mark incomplete or unreliable follow-up, pool scope, retrieval, timestamps,
+  or USD evidence as `censored`. Never turn censored rows into a class or use
+  them to fill a quota.
+- Build candidates label-blind, retain selection probabilities and strata, and
+  select balanced development data only after complete labels exist. Keep the
+  chronological test set at natural prevalence.
+- Use only data available by the 7-day cutoff as model input. Follow-up events,
+  outcomes, censoring fields, and post-cutoff market data are not features.
+- Keep raw bundles, manifests, normalized Parquet tables, SQL/DuckDB outputs,
+  outcomes, censoring, splits, features, graphs, and model artifacts auditable
+  and traceable to source rows.
+
+## Project flow
+
+1. **Feasibility:** freeze sources, schemas, windows, labels, sampling, and
+   evaluation; verify access, coverage, historical USD, and retrieval quality.
+2. **Collection:** discover and screen candidates without labels, collect full
+   histories, assign outcomes, and build sampling and split manifests.
+3. **Data product:** follow `docs/DATA_ENGINEERING_WORKFLOW.md` to produce
+   validated Parquet and DuckDB/SQL model tables.
+4. **Modelling:** compare heuristics, market and token baselines, static
+   GraphSAGE, and graph/token/market fusion on the same split.
+5. **Delivery:** report metrics, figures, reproducibility details, limitations,
+   and negative results.
+
+Temporal GNNs and graph pretraining are optional explorations. They require a
+separate data contract and leakage audit before being treated as results.
+
+## Evaluation and release gate
+
+Use chronological train, validation, and test partitions. Audit duplicate or
+related launches and overlapping graph neighborhoods. Fit transformations,
+thresholds, and calibration on training/validation data only. Report class
+support, observed test prevalence, average precision, precision, recall,
+macro-F1, false-positive rate, `Precision@K`, and sampling-weighted metrics
+where relevant.
+
+Do not claim final GNN performance until completeness, censoring, source
+limitations, class support, split support, and leakage checks pass. Every
+released result must record source and retrieval date, code/configuration
+versions, counts, uniqueness and time checks, split metadata, model inputs,
+seeds, metrics, and resource use. Never expose `.env` secrets.

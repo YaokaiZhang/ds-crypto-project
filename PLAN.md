@@ -17,7 +17,13 @@ Create separate tables for token entities, raw events, outcomes, censoring reaso
 
 ## 2. Build the data product and EDA - week 2
 
-- Preserve immutable raw snapshots and processed event tables, preferably Parquet.
+Follow the implementation contract in
+[`docs/DATA_ENGINEERING_WORKFLOW.md`](docs/DATA_ENGINEERING_WORKFLOW.md): keep
+immutable raw bundles, write normalized Parquet tables, and use DuckDB with
+versioned SQL transformations for analytical and model-ready tables.
+
+- Preserve immutable raw snapshots and processed event tables in the documented
+  Parquet layer.
 - Normalize addresses and timestamps while retaining transaction and event identifiers.
 - Deduplicate using transaction and log identifiers.
 - Aggregate qualifying activity across pools while retaining pool-level details.

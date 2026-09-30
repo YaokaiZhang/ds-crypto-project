@@ -55,7 +55,10 @@ The project may claim an association between early on-chain activity and the lat
 ## Deliverables and acceptance criteria
 
 1. Source, schema, label, license, access, and limitation audit.
-2. Reproducible token cohort with immutable raw snapshots, processed event tables, censoring records, and a versioned manifest.
+2. Reproducible token cohort with immutable raw snapshots, normalized Parquet
+   tables, DuckDB/SQL transformations, censoring records, and a versioned
+   manifest. The implementation contract is in
+   [`docs/DATA_ENGINEERING_WORKFLOW.md`](docs/DATA_ENGINEERING_WORKFLOW.md).
 3. Deterministic chronological split with duplicate, campaign, and neighborhood-overlap checks, plus an auditable class-balance and sampling manifest.
 4. Activity heuristic, market-context and feature baselines, scratch static point-in-time GNN, and a graph-plus-token-plus-market fusion model. Temporal GNN processing is an optional exploration direction, not a required deliverable. Self-supervised GNN pretraining is optional if data and compute support it.
 5. Locked test results with prevalence, support, average precision, precision, recall, F1, false-positive rate, and precision at a stated review budget.
