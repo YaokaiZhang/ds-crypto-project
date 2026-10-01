@@ -2,14 +2,14 @@
 
 The next phase is a data-audit pipeline with a hard stop before modelling.
 The objective is to establish a reproducible token-level cohort, labels, and
-chronological split before implementing a GNN.
+general 80/10/10 split before implementing a GNN.
 
 The primary label in this document has been superseded by
 `config/label_specification.json` version `week1-labels-0.4` and
 `docs/WEEK1_GRAPH_VOLUME_LABELS.md`. The Blockscout/RPC collector below remains
 useful for raw event and coverage experiments, but it does not provide the
 historical `Swap.amountUSD` field required for the primary volume label.
-The required cohort quota is specified in
+The current split policy is specified in
 `docs/COHORT_SAMPLING_AND_CLASS_BALANCE.md`.
 
 ## 1. Freeze the data contract
@@ -60,7 +60,7 @@ The collector must:
 Market context can use timestamped Binance ETH/BTC data, Ethereum gas history
 from `eth_feeHistory`, and DefiLlama DEX-volume and TVL data where repeatable.
 
-## 3. Create the candidate frame and balanced development cohort
+## 3. Create the candidate frame and general model split
 
 Build the candidate frame before inspecting primary labels:
 
@@ -71,19 +71,14 @@ Build the candidate frame before inspecting primary labels:
 - Avoid sampling only from current high-volume pools.
 - Preserve the sampling frame and selection criteria in a manifest.
 
-Collect a buffer of candidates rather than stopping at 100, because some
-will be censored, excluded for overlap, or needed to preserve chronological
-support. After complete labels are assigned, select the development cohort:
-
-- 50 `low_volume_dead` tokens;
-- 50 `continued_activity` tokens;
-- coverage across launch periods and activity or pool-count strata where
-  feasible;
-- no duplicated token contracts and no label changes to meet the quota.
-
-Keep a separate chronological test holdout with its observed class
-prevalence. Do not force the test holdout to 50/50. Retain the full labelled
-candidate frame and selection weights for prevalence-aware evaluation.
+Collect a buffer of candidates because some will be censored or excluded for
+overlap. After complete labels are assigned, retain all eligible labeled rows
+and apply `config/model_split.json`: 80% training, 10% validation, and 10%
+test within label and launch-period strata, with overlap groups kept together.
+For 1,000 active and 1,000 dead rows, this means 800/800 training,
+100/100 validation, and 100/100 test. Retain the full labelled candidate
+frame and selection weights; do not discard rows to force a 50/50 development
+quota.
 
 ## 4. Construct labels
 
@@ -114,36 +109,34 @@ Manually inspect a sample of raw and normalized records. Check:
 - Liquidity-only activity.
 - Historical USD amount completeness for every follow-up swap.
 - Source and launch-period bias.
-- Difference between the balanced development cohort and natural test
-  prevalence.
+- Difference between the collected candidate prevalence and each model split.
 - Retrieval completeness.
 - Shared deployers, funding wallets, bytecode, and counterparty overlap.
 
-## 6. Freeze chronological splits
+## 6. Freeze the general split
 
-Create a versioned `split_manifest` before modelling:
+Create a versioned `split_manifest` before modelling using
+`config/model_split.json`:
 
-- Older launches: training.
-- Middle period: validation.
-- Newest sufficiently mature launches: test.
-- Apply the 50/50 quota to the declared development cohort only; preserve the
-  observed prevalence in the chronological test holdout.
+- Assign 80% to training, 10% to validation, and 10% to test within each
+  label/launch-period stratum.
 - Keep related tokens and overlap groups together.
-- Require at least two launch periods in test.
 - Keep all snapshots of a token in one partition.
+- Record any count adjustment caused by group-preserving assignment.
+- Keep the test partition locked until model selection is complete.
+- A chronological split may be generated later as a secondary stress test.
 
-The split boundaries and review budget must be fixed before test labels are
-used.
+The split seed, strata, grouping rule, and review budget must be fixed before
+test labels are used.
 
 ## 7. Apply the go/no-go gate
 
 Continue to modelling only if:
 
-- The development cohort reaches 50 examples of each primary outcome, or the
-  shortfall and cause are explicitly reported.
-- Validation and test have enough supported examples for the planned metrics;
-  exact 50/50 balance is not required in chronological partitions.
-- Test spans at least two launch periods.
+- Training, validation, and test each have enough supported examples for the
+  planned metrics.
+- The observed per-class allocations and any group-preserving adjustments are
+  recorded.
 - Censoring among candidates intended for the eligible development cohort is
   below 20 percent.
 - Event histories and labels are reproducible.

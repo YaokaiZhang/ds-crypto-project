@@ -38,8 +38,11 @@ Keep these products separate:
 - `outcomes`: primary and sensitivity labels plus volume evidence;
 - `censoring`: incomplete or unreliable retrieval reasons;
 - `candidates` and `sampling`: label-blind selection metadata and weights;
-- `splits`: chronological partitions and overlap groups;
+- `splits`: general 80/10/10 token-level partitions and overlap groups;
 - `features`: cutoff-bounded token and market features;
+- `feature_audit`: raw-event and boundary-exclusion counts used for leakage
+  checks, kept out of model-facing features;
+- `request_log`: normalized request lineage for each source collection;
 - `graphs`: graph-construction manifests and point-in-time graph inputs.
 
 Raw bundles and request manifests remain the lineage source. Normalized and
@@ -61,6 +64,11 @@ Transformations must be deterministic from retained Parquet inputs and must:
 - carry candidate selection probabilities and sampling weights;
 - make label sums and threshold decisions traceable to event rows.
 
+The model-facing `features` table contains only values available through the
+recorded cutoff. Boundary counters such as post-cutoff, pre-`t0`, and missing
+timestamp counts live in `feature_audit` and feed the DuckDB
+`feature_cutoff_quality` table instead of being exposed as predictors.
+
 DuckDB databases may be materialized for a run or created from Parquet on
 demand. They are derived artifacts, not replacements for raw bundles,
 manifests, or versioned Parquet outputs.
@@ -73,9 +81,14 @@ manifests, or versioned Parquet outputs.
 3. Write versioned Parquet tables and validate required fields and uniqueness.
 4. Load or query the Parquet tables with DuckDB.
 5. Run SQL transformations for outcomes, censoring summaries, candidate and
-   sampling joins, chronological splits, and point-in-time features.
+   sampling joins, general stratified splits, and point-in-time features.
 6. Export model-ready tables and a manifest containing input paths, row counts,
    code/configuration revisions, and validation results.
+
+The current implementation is `scripts/build_data_product.py`; it writes the
+normalized Parquet layer and runs `sql/model_tables.sql`. Its `--source`
+arguments select completed collection runs, while `--candidate` arguments
+preserve the full label-blind candidate frame, including candidate-only rows.
 
 ## Acceptance checks
 
@@ -88,8 +101,11 @@ Before modelling, the pipeline must reproduce:
 - primary volume totals and labels from positive historical `amountUSD` values;
 - explicit censoring reasons rather than inferred negative labels;
 - selection probabilities, cohort roles, and sampling weights;
-- chronological split assignments and overlap exclusions;
-- no post-cutoff event, outcome, or market data in feature tables.
+- 80/10/10 split assignments stratified by label and launch period, with
+  overlap exclusions or group-preserving adjustments;
+- no post-cutoff event, outcome, or market data in feature tables;
+- zero duplicate event keys and explicit boundary counts in
+  `feature_cutoff_quality`.
 
 The analytical handoff is complete only when these checks can be rerun from
 the retained raw, manifest, Parquet, and SQL/DuckDB artifacts.

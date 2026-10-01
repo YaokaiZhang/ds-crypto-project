@@ -15,10 +15,13 @@ The screen excludes candidates with incomplete pool/activity retrieval or
 missing/nonpositive early swap USD values. It does not inspect the later
 90-day follow-up. The selected rows retain `inclusion_probability` and
 `sampling_weight`; these are required when reporting results from this
-enriched development cohort.
+enriched candidate source. Enrichment does not define a separate balanced
+development cohort.
 
 After screening, run `scripts/graph_free_pilot.py` on
 `selected_candidates.jsonl` to collect the complete 90-day follow-up and
 assign the primary `low_volume_dead` / `continued_activity` label. The
-chronological natural-prevalence test set remains separate and is not
-enriched.
+After complete labels are available, combine eligible rows with the broader
+labeled population and apply the general 80/10/10 split in
+`config/model_split.json`. Preserve the inclusion probabilities and weights
+for analysis; do not use enrichment to force a 50/50 train/validation split.

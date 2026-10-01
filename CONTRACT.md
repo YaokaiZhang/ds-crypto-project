@@ -10,6 +10,7 @@ schemas, procedures, and run results live in the referenced documents.
 - `config/label_specification.json`: primary and sensitivity label rules.
 - `config/event_schema.json`: normalized event fields and identifiers.
 - `config/market_context_schema.json`: point-in-time market features.
+- `config/model_split.json`: primary general split and evaluation rules.
 - `docs/COHORT_SAMPLING_AND_CLASS_BALANCE.md`: candidate sampling and quotas.
 - `docs/DATA_ENGINEERING_WORKFLOW.md`: Parquet, SQL, DuckDB, and data checks.
 - `docs/WEEK1_GRAPH_VOLUME_LABELS.md`: label rationale and source evidence.
@@ -27,9 +28,16 @@ schemas, procedures, and run results live in the referenced documents.
 - Mark incomplete or unreliable follow-up, pool scope, retrieval, timestamps,
   or USD evidence as `censored`. Never turn censored rows into a class or use
   them to fill a quota.
-- Build candidates label-blind, retain selection probabilities and strata, and
-  select balanced development data only after complete labels exist. Keep the
-  chronological test set at natural prevalence.
+- Build candidates label-blind and retain selection probabilities and strata.
+  After complete labels exist, use the complete eligible labeled population;
+  do not require a fixed 50/50 development quota. Apply the general token-
+  level split in `config/model_split.json`: 80% training, 10% validation, and
+  10% test within each label and launch-period stratum, keeping overlap groups
+  together. A prior 500/500 cohort is a historical pilot artifact, not the
+  current sampling contract.
+- The split is class-proportional, not a single global row split: with 1,000
+  active and 1,000 dead rows, assign 800/800 to training, 100/100 to
+  validation, and 100/100 to test, subject to overlap-group adjustments.
 - Use only data available by the 7-day cutoff as model input. Follow-up events,
   outcomes, censoring fields, and post-cutoff market data are not features.
 - Keep raw bundles, manifests, normalized Parquet tables, SQL/DuckDB outputs,
@@ -54,12 +62,14 @@ separate data contract and leakage audit before being treated as results.
 
 ## Evaluation and release gate
 
-Use chronological train, validation, and test partitions. Audit duplicate or
-related launches and overlapping graph neighborhoods. Fit transformations,
-thresholds, and calibration on training/validation data only. Report class
-support, observed test prevalence, average precision, precision, recall,
-macro-F1, false-positive rate, `Precision@K`, and sampling-weighted metrics
-where relevant.
+Use the general token-level train, validation, and test partitions defined in
+`config/model_split.json`. Audit duplicate or related launches and overlapping
+graph neighborhoods. Fit transformations, thresholds, and calibration on
+training/validation data only; keep the test partition locked until the final
+evaluation. Report class support, dataset prevalence, average precision,
+precision, recall, macro-F1, false-positive rate, `Precision@K`, and
+sampling-weighted metrics where relevant. A chronological partition may be
+reported as a secondary stress test when it has adequate class support.
 
 Do not claim final GNN performance until completeness, censoring, source
 limitations, class support, split support, and leakage checks pass. Every

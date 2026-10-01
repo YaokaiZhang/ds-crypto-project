@@ -21,7 +21,7 @@ The primary label follows the proposed dead-coin volume heuristic:
 
 The former tenth-swap/no-qualifying-activity rule remains a sensitivity analysis under a separate label definition. It is no longer the primary task and it does not exclude tokens that have fewer than ten swaps. Ordinary wallet transfers, airdrops, and price changes do not count as swaps. The outcome describes observable low trading volume, not malicious intent.
 
-## Cohort sampling and class-balance requirement
+## Cohort sampling and split requirement
 
 The detailed sampling contract is in
 [`docs/COHORT_SAMPLING_AND_CLASS_BALANCE.md`](docs/COHORT_SAMPLING_AND_CLASS_BALANCE.md).
@@ -31,20 +31,27 @@ frame must cover multiple launch periods and activity or pool-count strata,
 and must retain every candidate's selection metadata even when the candidate
 is later censored or not selected for modelling.
 
-After complete primary labels are available, target a development cohort of
-50 `low_volume_dead` tokens and 50 `continued_activity` tokens. This 1:1
-quota is a case-control sampling design for model development, not a claim
-that the two outcomes are equally common in the market. Collect a buffer of
-additional candidates because incomplete follow-up, unreliable USD amounts,
-overlap exclusions, and chronological support can prevent a candidate from
-contributing to the quota. Never change a label or duplicate a token to meet
-the quota.
+After complete primary labels are available, use the complete eligible
+labeled population rather than selecting a fixed 50/50 development quota.
+Apply the general token-level split in
+[`config/model_split.json`](config/model_split.json): 80% training, 10%
+validation, and 10% test, stratified within each label and launch-period
+stratum. Keep each overlap group in one partition. The term development set
+means training plus validation; the test set remains locked until model
+selection is complete.
 
-Keep a separate chronological holdout with its observed class prevalence. Do
-not force the final test set to 50/50. Preserve the candidate frame,
-selection probabilities, quota stratum, and any case-control weights so that
-metrics and calibration can distinguish the balanced development sample from
-the deployment population.
+For example, with 1,000 `continued_activity` and 1,000 `low_volume_dead`
+tokens, the intended allocation is 800 active plus 800 dead for training,
+100 active plus 100 dead for validation, and 100 active plus 100 dead for
+test. Group-boundary constraints can make individual counts differ slightly;
+the assignment rule and resulting counts must be recorded.
+
+Retain the candidate frame, selection probabilities, launch/activity strata,
+and any enrichment or case-control weights. Such weights may be used in
+training or reporting when selection was unequal, but they do not replace the
+general split or justify discarding otherwise eligible labeled rows. A
+chronological split may be reported as a secondary stress test when support
+is adequate, not as the primary evaluation split.
 
 ## Scope and claims
 
@@ -59,7 +66,9 @@ The project may claim an association between early on-chain activity and the lat
    tables, DuckDB/SQL transformations, censoring records, and a versioned
    manifest. The implementation contract is in
    [`docs/DATA_ENGINEERING_WORKFLOW.md`](docs/DATA_ENGINEERING_WORKFLOW.md).
-3. Deterministic chronological split with duplicate, campaign, and neighborhood-overlap checks, plus an auditable class-balance and sampling manifest.
+3. Deterministic general token-level 80/10/10 split with duplicate, campaign,
+   and neighborhood-overlap checks, plus an auditable class-balance and
+   sampling manifest.
 4. Activity heuristic, market-context and feature baselines, scratch static point-in-time GNN, and a graph-plus-token-plus-market fusion model. Temporal GNN processing is an optional exploration direction, not a required deliverable. Self-supervised GNN pretraining is optional if data and compute support it.
 5. Locked test results with prevalence, support, average precision, precision, recall, F1, false-positive rate, and precision at a stated review budget.
 6. Sensitivity analyses for history length, activity thresholds, and time periods where support permits.

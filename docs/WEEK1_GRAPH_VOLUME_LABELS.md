@@ -22,22 +22,19 @@ It does not estimate historical USD from today's token price or ETH price. If
 a follow-up swap has a missing, invalid, or nonpositive USD value, the token is
 censored because a real swap should not be silently counted as zero dollars.
 
-## Cohort sampling requirement
+## Current cohort and split requirement
 
 The 100-token result below was collected under the earlier 30-day observation
 window. It is a historical engineering pilot, not a result for the current
 7-day primary task or the final balanced
-development cohort. After complete labels are available, the project must
-collect enough additional candidates to target 50 `low_volume_dead` and 50
-`continued_activity` tokens for development. The current result contains only
-18 `continued_activity` tokens, so at least 32 additional active-volume cases
-are needed before accounting for censoring, overlap exclusions, and
-chronological support.
-
-The quota is a case-control sampling design and must not be interpreted as
-market prevalence. The full candidate frame and sampling weights must be
-retained. The chronological test holdout must preserve observed prevalence
-rather than being forced to 50/50.
+development cohort. The current modelling policy is now the general
+token-level split in `config/model_split.json`: 80% training, 10% validation,
+and 10% test within label and launch-period strata, with overlap groups kept
+together. With 1,000 active and 1,000 dead rows, the intended allocation is
+800/800 training, 100/100 validation, and 100/100 test. The full candidate
+frame and selection weights must be retained. The earlier 50/50 quota and
+chronological holdout are historical design choices for older runs, not the
+current primary split.
 
 ## Sensitivity definition
 

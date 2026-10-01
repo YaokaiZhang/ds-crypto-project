@@ -5,6 +5,8 @@ uv.lock
 pyproject.toml
 .env
 logs
-config
+config/*
+!config/
+!config/model_split.json
 __pycache__
 .pytest_cache

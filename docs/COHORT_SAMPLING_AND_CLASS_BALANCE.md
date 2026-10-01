@@ -2,9 +2,10 @@
 
 ## Status
 
-This is the sampling requirement for the primary `low_volume_dead` task. It
-does not change the label threshold or the censoring rules in
-`config/label_specification.json`.
+This is the sampling and split requirement for the primary `low_volume_dead`
+task. It does not change the label threshold or the censoring rules in
+`config/label_specification.json`. The governing split configuration is
+`config/model_split.json`.
 
 ## Primary labels
 
@@ -29,36 +30,40 @@ therefore the feature window and label window.
 
 1. Build a candidate frame without inspecting primary labels. Cover multiple
    launch periods and activity or pool-count strata.
-2. Freeze the chronological test boundary and development-selection rule
-   before inspecting any primary outcomes.
+2. Freeze the general split rule and grouping policy before model selection.
 3. Collect all selected pools and the complete 7-day observation plus
    90-day follow-up for each candidate.
 4. Assign the primary label, or record a specific censoring reason.
 5. Retain the full candidate frame, including candidates that are censored or
    not selected for the modelling cohort.
-6. After labels are complete, select the 50/50 development cohort only from
-   the predeclared development pool. Do not relabel or duplicate tokens to
-   satisfy it.
-7. Keep the chronological test holdout untouched and report its observed class
-   prevalence rather than forcing a 1:1 ratio.
+6. After labels are complete, retain all eligible labeled rows. Do not
+   relabel, duplicate, or discard tokens to manufacture a balanced development
+   sample.
+7. Assign each eligible token to train, validation, or test using the general
+   80/10/10 policy. Stratify within label and launch-period strata and keep
+   each overlap group in one partition.
 
-## Development quota
+## General split policy
 
-The target development cohort is:
+The primary model split is:
 
-| Primary label | Target |
+| Partition | Share within each label/launch stratum |
 | --- | ---: |
-| `low_volume_dead` | 50 |
-| `continued_activity` | 50 |
+| Training | 80% |
+| Validation | 10% |
+| Test | 10% |
 
-This is a 1:1 case-control sample for development and comparison. It is not
-an estimate of the real market prevalence of dead and active tokens. Collect a
-buffer of candidates because censoring, overlap exclusions, launch-period
-coverage, and chronological split constraints can reduce the usable count.
+For example, if the eligible population contains 1,000
+`continued_activity` and 1,000 `low_volume_dead` rows, the intended counts are
+800 active plus 800 dead in training, 100 active plus 100 dead in validation,
+and 100 active plus 100 dead in test. Overlap-group constraints may adjust an
+individual count slightly; the final manifest is authoritative.
 
-If the quota cannot be reached, report the shortfall and its cause. Do not
-lower the USD threshold, count mints or burns as trading volume, or treat
-censored tokens as either class to fill the quota.
+Use all eligible training rows. If the complete population is not balanced,
+record any class weighting, training-only sampling, or inverse-probability
+weighting used by the model. Censored rows remain outside supervised splits.
+An optional chronological split can be reported as a secondary stress test
+when it has adequate class support.
 
 ## Required metadata
 
@@ -67,17 +72,17 @@ The candidate and sampling manifests must preserve:
 - candidate-frame selection rule and selection probability;
 - launch-period and activity or pool-count strata;
 - complete primary label and censoring reason;
-- cohort role: development, validation, test, or excluded;
-- quota-selection reason;
-- case-control or inverse-probability weight;
-- predeclared split boundary and test-selection rule;
-- chronological cutoff, follow-up end, and overlap group.
+- cohort role: training, validation, test, or excluded;
+- candidate-selection or enrichment reason;
+- case-control or inverse-probability weight, when applicable;
+- split version, ratio, seed, and stratum assignment;
+- cutoff, follow-up end, and overlap group.
 
 ## Evaluation rule
 
-Train and tune using the declared development and validation design. Report
-the class balance and sampling weights. Evaluate the final model on the
-chronological holdout with its observed prevalence. Use prevalence-preserving
-test metrics and review-budget measures such as `Precision@K`; do not present
-metrics from the balanced development sample as market-level prevalence
-estimates.
+Train on the general training partition and tune thresholds, calibration, and
+hyperparameters on validation only. Keep test labels locked until the final
+evaluation. Report per-partition class counts, test prevalence, sampling
+weights, and review-budget measures such as `Precision@K`. Do not treat a
+balanced class allocation as a market-prevalence estimate. A chronological
+stress-test result is secondary to the general split.
