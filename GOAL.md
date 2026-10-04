@@ -55,6 +55,15 @@ is adequate, not as the primary evaluation split.
 
 ## Scope and claims
 
+The next graph-input revision uses one separate token-centered graph per
+target token with the typed structure wallet --swap activity--> pool
+--contains--> target token. Wallet nodes represent blockchain addresses
+observed in swap participant fields, not verified people. Wallet-pool swap
+activity is aggregated from the first 7 days only. See
+docs/GRAPH_WALLET_INPUT_CONTRACT.md for the input, split, and inference rules.
+This changes the model-input contract; it does not change the token-level
+label or evaluation split.
+
 Start with Ethereum tokens traded on a fixed, documented set of selected decentralized-exchange protocols and liquidity pools. The prediction unit is the token contract. The primary task uses the same fixed 7-day observation window for every token and does not require reaching ten swaps. Use only pre-cutoff information as model input. Evaluate 14-day and 30-day observation windows as sensitivity analyses when support permits. Include a separate market-context input when reliable historical variables are available. Tokens without a launch/activity timestamp or complete label evidence are censored.
 
 The project may claim an association between early on-chain activity and the later 90-day low-volume outcome under the documented cohort and split protocol. It must not claim guaranteed survival, fraud, price direction, or investment suitability.

@@ -2,6 +2,12 @@
 
 ## Decision
 
+The feasibility pilot did not collect a canonical swap participant address.
+It therefore cannot produce the planned wallet --swap activity--> pool
+--contains--> token input. This is a data contract gap, not evidence that
+wallet information is unhelpful. A wallet-graph run requires a new
+participant-field collection and point-in-time lineage audit.
+
 `go_no_go: false`. The pilot does not support modelling or GNN implementation.
 The next step is to repair source coverage and complete the terms and limits
 review, then rerun the current frozen volume-label and cohort-sampling

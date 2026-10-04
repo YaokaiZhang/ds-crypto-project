@@ -40,6 +40,7 @@ from scripts.graph_free_pilot import (  # noqa: E402
     write_json,
     write_jsonl,
 )
+from scripts.participant_fields import PARTICIPANT_SOURCE_FIELDS  # noqa: E402
 
 
 FOLLOWUP_DAYS = 90
@@ -107,13 +108,14 @@ def followup_event_query(
       transaction {{ id blockNumber timestamp }}
       {relation} {{ id }}
     """
+    source_fields = PARTICIPANT_SOURCE_FIELDS[protocol]
     return f"""
     query {{
       swaps(
         first: {PAGE_SIZE}, skip: {skip}
         orderBy: timestamp, orderDirection: asc
         where: {{ {time_filter} }}
-      ) {{ {common} amountUSD }}
+      ) {{ {common} {source_fields["swap_sender"]} {source_fields["swap_recipient"]} {source_fields["transaction_from"]} amountUSD }}
       mints(
         first: {PAGE_SIZE}, skip: {skip}
         orderBy: timestamp, orderDirection: asc
@@ -619,7 +621,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         ),
     )
     report = {
-        "report_version": "graph-followup-0.1",
+        "report_version": "graph-followup-0.2",
         "retrieved_at": utc_now(),
         "source": {
             "name": "The Graph gateway, official Uniswap v2 and v3 subgraphs",
@@ -629,6 +631,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "api_key_env": args.api_key_env,
             "terms_status": "not_audited",
+            "normalized_event_schema": "week1-events-0.2",
+            "participant_field_mapping": PARTICIPANT_SOURCE_FIELDS,
         },
         "inputs": {
             "entities": str(entities_path),

@@ -9,10 +9,17 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import sys
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterable
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.participant_fields import normalize_canonical_participants  # noqa: E402
 
 TABLE_FIELDS = {
     "tokens": [
@@ -39,7 +46,8 @@ TABLE_FIELDS = {
         ("block_hash", "str"), ("block_timestamp", "str"),
         ("transaction_hash", "str"), ("log_index", "int"), ("topics", "list_str"),
         ("data", "str"), ("amount_usd", "str"), ("source_request_id", "str"),
-        ("source", "str"),
+        ("source", "str"), ("swap_sender", "str"), ("swap_recipient", "str"),
+        ("transaction_from", "str"),
     ],
     "outcomes": [
         ("token_address", "str"), ("source_dataset", "str"),
@@ -208,11 +216,14 @@ def string_list(value: Any) -> list[str] | None:
 
 
 def load_report(source: Path) -> dict[str, Any]:
-    path = source / "graph_free_pilot_report.json"
-    if not path.exists():
-        return {}
-    value = json.loads(path.read_text(encoding="utf-8"))
-    return value if isinstance(value, dict) else {}
+    for filename in ("graph_free_pilot_report.json", "wallet_graph_collection_report.json"):
+        path = source / filename
+        if not path.exists():
+            continue
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(value, dict):
+            return value
+    return {}
 
 
 def load_source(source: Path) -> dict[str, Any]:
@@ -255,6 +266,23 @@ def load_candidates(paths: list[Path]) -> dict[str, dict[str, Any]]:
     return candidates
 
 
+def load_frozen_splits(path: Path | None) -> dict[tuple[str, str], tuple[str, None]]:
+    if path is None:
+        return {}
+    result: dict[tuple[str, str], tuple[str, None]] = {}
+    for row in iter_jsonl(path):
+        token = token_of(row)
+        source = text(row.get("source_dataset"))
+        partition = text(row.get("partition"))
+        if not token or not source or partition not in {"train", "validation", "test"}:
+            raise ValueError(f"invalid frozen split row in {path}: {row}")
+        key = (token, source)
+        if key in result:
+            raise ValueError(f"duplicate frozen split row: {key}")
+        result[key] = partition, None
+    return result
+
+
 def normalize_event(row: dict[str, Any], source_name: str) -> dict[str, Any]:
     token = token_of(row)
     if not token:
@@ -262,6 +290,7 @@ def normalize_event(row: dict[str, Any], source_name: str) -> dict[str, Any]:
     transaction_hash = text(row.get("transaction_hash")) or text(row.get("event_id"))
     if not transaction_hash:
         raise ValueError(f"event has no transaction identity for {token}")
+    participants = normalize_canonical_participants(row)
     return {
         "token_address": token, "source_dataset": source_name,
         "protocol": text(row.get("protocol")), "pool_address": text(row.get("pool_address")),
@@ -273,6 +302,7 @@ def normalize_event(row: dict[str, Any], source_name: str) -> dict[str, Any]:
         "topics": string_list(row.get("topics")), "data": text(row.get("data")),
         "amount_usd": text(row.get("amount_usd")), "source_request_id": text(row.get("source_request_id")),
         "source": text(row.get("source")),
+        **participants,
     }
 
 
@@ -294,7 +324,7 @@ class EventKeyIndex:
 
     def add(self, row: dict[str, Any]) -> bool:
         key = event_key(row)
-        fingerprint = event_fingerprint(row)
+        fingerprint = json.dumps(row, sort_keys=True, separators=(",", ":"))
         cursor = self.connection.execute(
             "INSERT OR IGNORE INTO event_keys VALUES (?, ?, ?, ?)",
             (*key, fingerprint),
@@ -318,16 +348,6 @@ class EventKeyIndex:
         self.connection.close()
         if not self.keep:
             self.path.unlink(missing_ok=True)
-
-
-def event_fingerprint(row: dict[str, Any]) -> str:
-    """Compare canonical event content without request-specific lineage."""
-    comparable = {
-        key: value
-        for key, value in row.items()
-        if key not in {"event_id", "source_dataset", "source_request_id"}
-    }
-    return json.dumps(comparable, sort_keys=True, separators=(",", ":"))
 
 
 def arrow_type(pa: Any, kind: str) -> Any:
@@ -476,6 +496,13 @@ def outcome_row(outcome: dict[str, Any], source_name: str, retrieved_at: str | N
     row["token_address"] = token_of(outcome)
     row["source_dataset"] = source_name
     row["retrieved_at"] = retrieved_at
+    # Frozen target manifests encode follow-up completeness as censoring_status.
+    volume_complete = boolean(row["volume_complete"])
+    if volume_complete is None:
+        censoring_status = boolean(outcome.get("censoring_status"))
+        if censoring_status is not None:
+            volume_complete = not censoring_status
+    row["volume_complete"] = volume_complete
     return row
 
 
@@ -602,6 +629,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
 
     sources = [load_source((project_root / value).resolve()) for value in args.source]
     candidates = load_candidates([(project_root / value).resolve() for value in args.candidate])
+    frozen_splits = load_frozen_splits((project_root / args.frozen_split).resolve() if args.frozen_split else None)
     entities, outcomes, sensitivity = {}, {}, {}
     for source in sources:
         for token, entity in source["entities"].items():
@@ -652,7 +680,13 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             if candidate:
                 candidate_rows.append(candidate_row(candidate, source_name))
             sampling_rows.append(sampling_row(token, candidate, entity, outcome, source_name))
-            partition, reason = partition_for_outcome(outcome, train_end=train_end, validation_end=validation_end, test_end=test_end)
+            if frozen_splits:
+                key = (token, source_name or "")
+                if key not in frozen_splits:
+                    raise ValueError(f"missing frozen split assignment for {key}")
+                partition, reason = frozen_splits[key]
+            else:
+                partition, reason = partition_for_outcome(outcome, train_end=train_end, validation_end=validation_end, test_end=test_end)
             split_rows.append(split_row(token, entity, outcome, source_name, partition, reason))
         for name, rows in (("candidates", candidate_rows), ("sampling", sampling_rows), ("splits", split_rows)):
             sinks[name].append(rows)
@@ -700,7 +734,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
 
     duckdb_status = {"status": "skipped_by_flag"} if args.skip_duckdb else run_duckdb(output, project_root)
     manifest = {
-        "manifest_version": "data-product-0.1",
+        "manifest_version": "data-product-0.2",
         "created_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "sources": [{"path": str(source["path"]), "dataset": source["name"], "token_rows": len(source["entities"]), "outcome_rows": len(source["outcomes"]), "retrieved_at": source["report"].get("retrieved_at")} for source in sources],
         "candidate_files": [str((Path(args.project_root) / value).resolve()) for value in args.candidate],
@@ -710,8 +744,8 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "censored": sum(row[0].get("label") == "censored" for row in outcomes.values()),
             "supervised_labels": sum(row[0].get("label") in PRIMARY_LABELS for row in outcomes.values()),
         },
-        "contract": {"observation_days": 7, "followup_days": 90, "volume_threshold_usd": "1000", "volume_event_type": "swap", "censored_excluded_from_supervised_labels": True, "post_cutoff_events_excluded_from_features": True},
-        "validation": {"event_key": ["token_address", "transaction_hash", "log_index"], "split_boundaries": {"train_end": iso_time(train_end), "validation_end": iso_time(validation_end), "test_end": iso_time(test_end)}, "split_frozen_before_test_labels": "not_verified", "natural_prevalence_test_policy": True},
+        "contract": {"observation_days": 7, "followup_days": 90, "volume_threshold_usd": "1000", "volume_event_type": "swap", "censored_excluded_from_supervised_labels": True, "post_cutoff_events_excluded_from_features": True, "normalized_event_schema": "week1-events-0.2"},
+        "validation": {"event_key": ["token_address", "transaction_hash", "log_index"], "split_boundaries": {"train_end": iso_time(train_end), "validation_end": iso_time(validation_end), "test_end": iso_time(test_end)}, "split_frozen_before_test_labels": str((project_root / args.frozen_split).resolve()) if args.frozen_split else "not_verified", "natural_prevalence_test_policy": not bool(args.frozen_split), "split_policy": "frozen_target_manifest" if args.frozen_split else "chronological_boundaries"},
         "parquet": {"engine": "pyarrow", "tables": sorted(TABLE_FIELDS)},
         "duckdb": duckdb_status,
     }
@@ -724,6 +758,7 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-root", default=".")
     parser.add_argument("--source", action="append", required=True)
     parser.add_argument("--candidate", action="append", default=[])
+    parser.add_argument("--frozen-split")
     parser.add_argument("--output", required=True)
     parser.add_argument("--config", default="config/week1_config.json")
     parser.add_argument("--train-end")

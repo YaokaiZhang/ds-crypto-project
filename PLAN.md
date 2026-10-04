@@ -17,6 +17,12 @@ Create separate tables for token entities, raw events, outcomes, censoring reaso
 
 ## 2. Build the data product and EDA - week 2
 
+For the wallet-enriched graph revision, preserve source-mapped swap
+participant fields and build cutoff-bounded wallet-pool aggregates. Use one
+separate graph per target token with the structure wallet --swap activity-->
+pool --contains--> token. Retain raw event identifiers for audit and do not
+create transaction nodes in the first implementation.
+
 Follow the implementation contract in
 [`docs/DATA_ENGINEERING_WORKFLOW.md`](docs/DATA_ENGINEERING_WORKFLOW.md): keep
 immutable raw bundles, write normalized Parquet tables, and use DuckDB with
@@ -36,6 +42,11 @@ Deliver EDA on launch volume, class balance, dataset prevalence, candidate enric
 
 ## 3. Freeze evaluation and leakage controls - week 2-3
 
+For the wallet graph, build separate target-token graph artifacts after the
+token split. The same address may appear in multiple graph files, but the
+first experiment must not pass learned wallet state or message-passing
+information across token graphs.
+
 - Use the general token-level 80/10/10 partitions in `config/model_split.json`
   and keep all snapshots of a token together.
 - Group duplicate contracts, known related launches, and strongly overlapping target neighborhoods where evidence supports it.
@@ -48,6 +59,21 @@ Deliver EDA on launch volume, class balance, dataset prevalence, candidate enric
 Report average precision, precision, recall, macro-F1, false-positive rate, support, test prevalence, and sampling-weighted metrics where selection was unequal. Define a fixed review budget before looking at test labels: `Precision@K` is the fraction of supported `low_volume_dead` cases among the top K model scores in the general test partition. Select K from the intended analyst capacity using validation data and freeze it before test evaluation. Use three seeds when feasible. Resample independent token or overlap groups for uncertainty, not individual events. A chronological partition may be reported as a secondary stress test.
 
 ## 4. Baselines and models - week 3-4
+
+Run the wallet-enriched graph as a separately versioned input experiment after
+the existing pool-counterparty GraphSAGE baseline. Use the same eligible
+tokens, cutoff, labels, split, and tuning budget so any difference is
+attributable to participant information rather than a different cohort.
+
+### Wallet-graph implementation gate
+
+Before training the wallet-enriched graph, verify that the source exposes a
+stable swap participant field for the selected protocols. Store the participant
+role, normalized address, source event identifier, and retrieval lineage. If a
+participant is a router or contract, retain that fact as a limitation; do not
+call it a human user. A graph build with missing participant coverage must be
+reported as incomplete and must not be silently merged with the older graph
+artifact.
 
 1. Implement a simple activity or liquidity heuristic.
 2. Train a market-context-only baseline.

@@ -80,6 +80,11 @@ The Graph source terms and usage limits have not yet been audited for the
 project. This run also does not produce the pre-cutoff feature table or the
 Graph-specific split manifest required by the modelling plan.
 
+This pilot also does not expose the canonical swap participant fields needed
+for the wallet-enriched graph contract. It therefore provides no wallet-graph
+evaluation evidence; the current GraphSAGE artifacts use the older
+pool-counterparty input.
+
 ## Next Gate
 
 Do not train GraphSAGE or publish model results from this output. The next data

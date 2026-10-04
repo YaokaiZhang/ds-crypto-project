@@ -5,6 +5,9 @@ schemas, procedures, and run results live in the referenced documents.
 
 ## Read first
 
+- docs/GRAPH_WALLET_INPUT_CONTRACT.md: wallet-enriched graph input and
+  participant-field rules.
+
 - `GOAL.md`: purpose, scope, claims, and deliverables.
 - `PLAN.md`: project stages, model sequence, leakage controls, and gates.
 - `config/label_specification.json`: primary and sensitivity label rules.
@@ -16,6 +19,12 @@ schemas, procedures, and run results live in the referenced documents.
 - `docs/WEEK1_GRAPH_VOLUME_LABELS.md`: label rationale and source evidence.
 
 ## Non-negotiable rules
+
+- The wallet-enriched graph is a versioned model-input revision. Its first
+  graph is wallet --swap activity--> pool --contains--> target token, with one
+  separate target-token graph per token. It requires cutoff-bounded swap
+  participant fields; the existing pool-counterparty graph artifacts do not
+  satisfy this input contract.
 
 - Study Ethereum token contracts in a fixed, documented set of selected DEX
   pools; use one canonical row per token.
@@ -45,6 +54,11 @@ schemas, procedures, and run results live in the referenced documents.
   and traceable to source rows.
 
 ## Project flow
+
+The data product and modelling stages must treat the wallet-enriched graph as
+a new input version. It keeps the token-level labels and split, but requires
+participant-field collection, wallet-pool aggregation, and a separate
+leakage audit before it can produce results.
 
 1. **Feasibility:** freeze sources, schemas, windows, labels, sampling, and
    evaluation; verify access, coverage, historical USD, and retrieval quality.

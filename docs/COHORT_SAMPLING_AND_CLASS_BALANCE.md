@@ -45,6 +45,13 @@ therefore the feature window and label window.
 
 ## General split policy
 
+The wallet-enriched graph uses this same token split. Graph construction does
+not create a second wallet-level split, and it does not change the label or
+class allocation. Build separate cutoff-bounded target-token graph artifacts
+after assigning partitions; the same address may occur in different graph
+files, but the initial experiment does not share learned wallet state across
+partitions.
+
 The primary model split is:
 
 | Partition | Share within each label/launch stratum |
@@ -79,6 +86,9 @@ The candidate and sampling manifests must preserve:
 - cutoff, follow-up end, and overlap group.
 
 ## Evaluation rule
+
+Record the wallet-graph input version, participant-field coverage, and
+missing-participant counts separately from the sampling manifest.
 
 Train on the general training partition and tune thresholds, calibration, and
 hyperparameters on validation only. Keep test labels locked until the final

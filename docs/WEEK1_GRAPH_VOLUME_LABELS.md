@@ -2,6 +2,13 @@
 
 ## Primary definition
 
+The wallet-enriched graph is a separate model-input contract. Adding swap
+participant addresses does not change the primary label, its USD threshold, or
+the follow-up evidence rules. The current normalized event artifacts do not
+contain the participant fields required by
+GRAPH_WALLET_INPUT_CONTRACT.md, so the existing graph results are not
+wallet-graph results.
+
 The primary label is `low_volume_dead` when the sum of historical
 `Swap.amountUSD` values across the selected Uniswap v2/v3 pools is strictly
 less than USD 1,000 during the complete 90-day follow-up window. A value of

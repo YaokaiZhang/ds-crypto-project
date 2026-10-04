@@ -1,5 +1,10 @@
 # Pre-cutoff Enriched Batch
 
+The wallet-enriched graph is a model-input revision applied after the same
+token-level split. This enrichment screen does not define a wallet-level
+cohort and must not use the 90-day label or post-cutoff wallet activity. See
+GRAPH_WALLET_INPUT_CONTRACT.md for participant fields and leakage rules.
+
 The project can collect more `continued_activity` examples without using the
 90-day label during selection. `scripts/graph_screen.py` screens only the
 first seven days after each token's `t0`, records early swap volume and other

@@ -32,6 +32,10 @@ from scripts.week1_audit import (  # noqa: E402
     write_json,
     write_jsonl,
 )
+from scripts.participant_fields import (  # noqa: E402
+    PARTICIPANT_SOURCE_FIELDS,
+    normalize_source_participants,
+)
 
 
 PAGE_SIZE = 1000
@@ -149,8 +153,12 @@ def event_query(protocol: str, pools: list[str], skip: int) -> str:
       transaction {{ id blockNumber timestamp }}
       {relation} {{ id }}
     """
+    source_fields = PARTICIPANT_SOURCE_FIELDS[protocol]
     swap_fields = f"""
       {common}
+      {source_fields["swap_sender"]}
+      {source_fields["swap_recipient"]}
+      {source_fields["transaction_from"]}
       amountUSD
     """
     return f"""
@@ -265,6 +273,7 @@ def normalize_event(
     if not event_id or not relation.get("id") or not timestamp or block_number is None:
         return None
     transaction_hash = str(transaction.get("id") or event_id.split("#", 1)[0])
+    participants = normalize_source_participants(protocol, event_type, row)
     return {
         "token_address": token_address,
         "protocol": protocol,
@@ -276,8 +285,20 @@ def normalize_event(
         "block_number": block_number,
         "block_timestamp": timestamp,
         "amount_usd": str(row["amountUSD"]) if event_type == "swap" and row.get("amountUSD") is not None else None,
+        **participants,
         "source_request_id": request_id,
         "source": "the_graph",
+    }
+
+
+def participant_coverage(events: list[dict[str, Any]]) -> dict[str, int]:
+    """Summarize canonical participant presence without treating it as labels."""
+    swaps = [row for row in events if row.get("event_type") == "swap"]
+    return {
+        "swap_event_count": len(swaps),
+        "missing_swap_sender": sum(not row.get("swap_sender") for row in swaps),
+        "missing_swap_recipient": sum(not row.get("swap_recipient") for row in swaps),
+        "missing_transaction_from": sum(not row.get("transaction_from") for row in swaps),
     }
 
 
@@ -654,13 +675,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     write_jsonl(output / "outcomes.jsonl", outcomes)
     write_jsonl(output / "sensitivity_zero_activity_outcomes.jsonl", sensitivity_outcomes)
     report = {
-        "report_version": "graph-free-pilot-0.2",
+        "report_version": "graph-free-pilot-0.3",
         "retrieved_at": utc_now(),
         "source": {
             "name": "The Graph gateway, official Uniswap v2 and v3 subgraphs",
             "endpoint": redact_url(GRAPH_ENDPOINT.format(api_key=api_key, subgraph_id="<subgraph>"), secrets=(api_key,)),
             "api_key_env": args.api_key_env,
             "terms_status": "not_audited",
+            "normalized_event_schema": "week1-events-0.2",
+            "participant_field_mapping": PARTICIPANT_SOURCE_FIELDS,
         },
         "selection": {
             "candidates_file": args.candidates,
@@ -679,6 +702,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 row["event_type"] == "swap" and row.get("amount_usd") is not None for row in all_events
             ),
             "raw_request_rows": len(read_jsonl(output / "manifests" / "request_log.jsonl")),
+            "participant_field_coverage": participant_coverage(all_events),
         },
         "coverage": {
             "pool_queries_complete": all(row["complete"] for row in pool_coverage),

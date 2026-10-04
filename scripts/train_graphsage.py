@@ -435,7 +435,8 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         for row in predictions:
             handle.write(json.dumps(row, sort_keys=True, ensure_ascii=True) + "\n")
     metrics = {
-        "manifest_version": "graphsage-general-stratified-0.3",
+        "manifest_version": "graphsage-0.4",
+        "split_name": args.split_name,
         "graphs": str(source),
         "output": str(output),
         "seed": args.seed,
@@ -490,6 +491,7 @@ def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--graphs", required=True)
     result.add_argument("--output", required=True)
+    result.add_argument("--split-name", default="general_stratified_primary")
     result.add_argument("--seed", type=int, default=20261001)
     result.add_argument("--hidden-dim", type=int, default=32)
     result.add_argument("--dropout", type=float, default=0.20)

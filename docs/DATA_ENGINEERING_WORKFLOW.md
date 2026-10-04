@@ -23,6 +23,11 @@ not a claim that the final system is a production cloud warehouse.
 
 ## Data layers
 
+The wallet graph revision adds a model-input artifact named
+wallet_graph_edges. It contains cutoff-bounded wallet-to-pool swap aggregates
+and source-event lineage. It is separate from labels and does not replace the
+existing normalized events or point-in-time feature table.
+
 ```text
 raw gzip JSONL + request manifests
   -> normalized Parquet tables
@@ -50,6 +55,22 @@ analytical tables must retain source request identifiers and event identifiers
 needed to trace a row back to raw data.
 
 ## SQL and DuckDB contract
+
+The wallet graph revision additionally requires canonical participant fields in
+the normalized swap rows. Build wallet_graph_edges only after the token split
+is frozen, with one row per target token, selected pool, and normalized
+participant address. Each row must include the target cutoff, swap count,
+positive historical USD aggregate when available, active-day aggregate, source
+event identifiers or a lineage reference, and participant-field coverage.
+Existing normalized event artifacts do not contain a canonical participant
+address and therefore cannot be presented as wallet-graph inputs.
+
+The current implementation is `scripts/build_wallet_graph.py`. It consumes a
+frozen `targets.jsonl` and a read-only analytical DuckDB database, writes one
+local token/pool/wallet graph per model-ready target, and records excluded
+targets in `graph_quality.jsonl`. It fails closed when the database was built
+from the pre-participant event schema rather than silently creating token-only
+or imputed-wallet graphs.
 
 When transformations are implemented, keep reusable SQL under `sql/` or the
 documented equivalent and record the SQL/configuration version in each run.
@@ -91,6 +112,10 @@ arguments select completed collection runs, while `--candidate` arguments
 preserve the full label-blind candidate frame, including candidate-only rows.
 
 ## Acceptance checks
+
+For the wallet graph, participant fields must be source-mapped, normalized,
+and covered; edge aggregates must retain source-event lineage and contain no
+post-cutoff activity.
 
 Before modelling, the pipeline must reproduce:
 

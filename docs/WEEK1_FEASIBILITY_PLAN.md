@@ -14,6 +14,11 @@ The current split policy is specified in
 
 ## 1. Freeze the data contract
 
+The planned wallet-enriched graph is a later model-input revision. It keeps
+the token-level prediction unit and this label contract, but requires
+source-mapped swap participant addresses and cutoff-bounded wallet-pool
+aggregates. The current feasibility pilot did not collect those fields.
+
 Use Ethereum Uniswap V2 and V3 factories initially:
 
 - Uniswap V2: `0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f`

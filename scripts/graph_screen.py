@@ -35,11 +35,13 @@ from scripts.graph_free_pilot import (  # noqa: E402
     event_time,
     fetch_pools,
     normalize_event,
+    participant_coverage,
     read_jsonl,
     utc_now,
     write_json,
     write_jsonl,
 )
+from scripts.participant_fields import PARTICIPANT_SOURCE_FIELDS  # noqa: E402
 
 
 PRIMARY_OBSERVATION_DAYS = 7
@@ -74,13 +76,14 @@ def screen_event_query(
       transaction {{ id blockNumber timestamp }}
       {relation} {{ id }}
     """
+    source_fields = PARTICIPANT_SOURCE_FIELDS[protocol]
     return f"""
     query {{
       swaps(
         first: {PAGE_SIZE}, skip: {skip}
         orderBy: timestamp, orderDirection: asc
         where: {{ {time_filter} }}
-      ) {{ {common} amountUSD }}
+      ) {{ {common} {source_fields["swap_sender"]} {source_fields["swap_recipient"]} {source_fields["transaction_from"]} amountUSD }}
       mints(
         first: {PAGE_SIZE}, skip: {skip}
         orderBy: timestamp, orderDirection: asc
@@ -483,12 +486,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     write_jsonl(output / "selected_candidates.jsonl", selected)
     write_json(output / "selection_manifest.json", selection_manifest)
     report = {
-        "report_version": "graph-screen-0.1",
+        "report_version": "graph-screen-0.2",
         "retrieved_at": utc_now(),
         "source": {
             "name": "The Graph gateway, official Uniswap v2 and v3 subgraphs",
             "api_key_env": args.api_key_env,
             "terms_status": "not_audited",
+            "normalized_event_schema": "week1-events-0.2",
+            "participant_field_mapping": PARTICIPANT_SOURCE_FIELDS,
         },
         "selection": {
             "candidates_file": args.candidates,
@@ -513,6 +518,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "screen_events": sum(1 for _ in event_path.open()) if event_path.exists() else 0,
             "raw_request_rows": len(read_jsonl(output / "manifests" / "request_log.jsonl")),
+            "participant_field_coverage": participant_coverage(read_jsonl(event_path)),
         },
         "selection_manifest": "selection_manifest.json",
         "next_step": "run graph_free_pilot.py on selected_candidates.jsonl for complete 90-day labels",
