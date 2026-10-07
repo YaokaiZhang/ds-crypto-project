@@ -1,8 +1,70 @@
-# Goal: Early prediction of low-volume Ethereum token-project outcomes
+# Goal: Ethereum on-chain activity and risk analysis
 
 ## Purpose
 
-Build models that predict whether a newly launched Ethereum token project will meet the primary `low_volume_dead` outcome, using only early transaction and liquidity information. The intended users are analysts and traders screening new or obscure tokens. This is a risk-screening study, not investment advice, price prediction, or fraud detection.
+Build a unified, evidence-backed system with two task families: early
+prediction of low-volume token outcomes (Task A), and classic scam-pattern
+screening for phishing addresses, Ponzi contracts, and explicitly defined
+honeypot cases (Task B). Share point-in-time event infrastructure, graph
+building interfaces, GraphSAGE implementation tools, evaluation discipline,
+and an eventual query/evidence service. Keep labels, graph semantics, model
+weights and calibration separate initially.
+
+This is an explicit scope/architecture contract change adopted on
+2026-10-05. The authoritative design and feasibility assessment is
+[SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md](docs/SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md).
+Task B is governed by [SCAM_TASK_CONTRACT.md](docs/SCAM_TASK_CONTRACT.md).
+The [TrxLLM reference review](docs/TRXLLM_REFERENCE_REVIEW.zh-CN.md) explains
+what can be reused and what must be corrected. These are design commitments,
+not claims that new scam models or production services are implemented.
+
+Relative to the original Canvas, scam screening is the original downstream
+task and token activity analysis is the added downstream task. Relative to
+the current repository, token modelling is already implemented while scam
+services still need implementation. The engineering deliverable is a unified
+frontend accessing two independently callable analysis backends, sharing a
+graph protocol and GraphSAGE framework, with separate per-task EDA and model
+results. See the [platform and self-collected data guide](docs/PLATFORM_ENGINEERING_AND_DATA_GUIDE.zh-CN.md).
+
+The common research question is whether cutoff-bounded neighborhood behavior
+adds useful information over matched non-graph baselines across distinct
+on-chain screening tasks. A common platform does not require one global
+graph, shared weights, or a single combined risk probability.
+
+### System deliverables and release boundaries
+
+1. Retain the Task A data, labels, split and experiments described below.
+2. Add separate, auditable phishing, Ponzi and honeypot task specifications,
+   data cards, graph/feature baselines and evidence-based acceptance gates.
+   Deliver each branch as trained screening, rule/case analysis, or explicitly
+   unavailable according to demonstrated data support; never use demo scores
+   to imply completion. Honeypot sell restrictions require evidence beyond
+   graph patterns alone.
+3. Separate unlabeled inference from supervised training. Incremental chain
+   collection supplies inference inputs and future training candidates;
+   independently validated or mature outcomes supply supervised labels.
+4. Build a unified asynchronous query, graph/evidence and result-history
+   service after offline data/model gates pass. Show task-specific scores,
+   timestamps, coverage and unavailable states. A later-cohort/prospective
+   shadow check is an additional live-release gate, not a replacement for
+   Task A's primary research split.
+5. Compare independent task models before exploring shared pretraining or
+   multi-task weights. Publish negative transfer and non-graph wins honestly.
+
+The system does not infer malicious intent from inactivity, propagate guilt
+through counterparties, or present unavailable information as safety. Scam
+pattern identification is not advance incident prediction without a separate
+onset/lead-time evaluation contract. No automatic trading or blocking is in
+scope.
+
+## Task A: Early prediction of low-volume Ethereum token-project outcomes
+
+The remaining sections preserve Task A's existing numerical and evaluation
+contract. Build models that predict whether a newly launched Ethereum token
+project will meet the primary `low_volume_dead` outcome, using only early
+transaction and liquidity information. The intended users are analysts and
+traders screening new or obscure tokens. Task A is a risk-screening study,
+not investment advice, price prediction, or fraud detection.
 
 ## Main research question
 

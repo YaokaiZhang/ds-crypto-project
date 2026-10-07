@@ -3,6 +3,51 @@
 This is the short governing contract for the whole project. Detailed rules,
 schemas, procedures, and run results live in the referenced documents.
 
+## System scope revision: 2026-10-05
+
+The project now combines Task A (token low-volume outcome prediction) and
+Task B (classic scam-pattern screening) in a shared data, graph, evaluation,
+and eventual serving platform. This is a scope and architecture contract
+change; it does not relabel historical experiments or change Task A's
+numerical outcome/window/split rules.
+
+The adopted system design is
+[SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md](docs/SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md).
+Task B follows [SCAM_TASK_CONTRACT.md](docs/SCAM_TASK_CONTRACT.md).
+Reference-method limitations are documented in
+[TRXLLM_REFERENCE_REVIEW.zh-CN.md](docs/TRXLLM_REFERENCE_REVIEW.zh-CN.md).
+New task models and online services remain to be implemented and validated.
+
+The engineering boundary is further specified in
+[PLATFORM_ENGINEERING_AND_DATA_GUIDE.zh-CN.md](docs/PLATFORM_ENGINEERING_AND_DATA_GUIDE.zh-CN.md):
+a common frontend/platform API routes to independently callable token and
+scam backends. They share a versioned graph container and GraphSAGE framework,
+not necessarily topology, feature semantics, scalers, or weights. Separate
+deployment processes are optional; separate task interfaces, model packages,
+data analyses and performance artifacts are required. Preserve historical
+reports and keep online assessments distinct from offline benchmarks.
+
+### System-wide rules
+
+- Keep activity outcomes and scam labels separate. No inactivity-as-fraud
+  mapping, unknown-as-benign mapping, or unvalidated universal risk score.
+- Share event provenance and graph/experiment interfaces; version each task's
+  entity, window, features, graph semantics, labels, split and model artifacts.
+  Shared GraphSAGE code does not imply compatible checkpoints or shared weights.
+- Exclude post-cutoff information from inputs. Distinguish event validity,
+  external evidence availability, retrieval time, and label maturity.
+- Preserve source disagreements and incomplete data. Independent evidence or
+  mature outcomes are required for supervised labels; live collection alone
+  is not supervised training data.
+- Make unlabeled inference independent of training labels. Scores carry task,
+  cutoff, quality, model version and calibration status; missing scores remain
+  null with an explicit reason.
+- Audit cross-task entity/campaign/time leakage before fitting shared weights
+  or pretraining. Evaluate each task independently against matched baselines.
+- Require data/model admission, later-cohort or prospective shadow evidence,
+  operating measurements and rollback checks before broad live claims.
+  Research and service readiness are separate acceptance decisions.
+
 ## Read first
 
 - docs/GRAPH_WALLET_INPUT_CONTRACT.md: wallet-enriched graph input and
@@ -18,7 +63,13 @@ schemas, procedures, and run results live in the referenced documents.
 - `docs/DATA_ENGINEERING_WORKFLOW.md`: Parquet, SQL, DuckDB, and data checks.
 - `docs/WEEK1_GRAPH_VOLUME_LABELS.md`: label rationale and source evidence.
 
-## Non-negotiable rules
+The label, event and market-context JSON specifications referenced above were
+not present in this checkout at the scope review. Recover and version them
+with experiment artifacts before claiming reproducibility; do not invent
+their past contents. `config/model_split.json` remains the current Task A
+split contract. The following sections govern Task A specifically.
+
+## Task A non-negotiable rules
 
 - The wallet-enriched graph is a versioned model-input revision. Its first
   graph is wallet --swap activity--> pool --contains--> target token, with one

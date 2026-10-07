@@ -2,15 +2,22 @@
 
 ## Status
 
-This document defines wallet-graph-input-0.1, the next graph-input contract.
+This document defines wallet-graph-input-0.1 for Task A (token activity).
 It is a contract change for the model-input and data-engineering layers. It
 does not change the prediction unit, primary label, observation window,
 follow-up window, split policy, or evaluation rules.
 
-The existing GraphSAGE artifacts use a token-centered graph with pool and
-counterparty nodes. Those results remain valid under the older graph-input
-version. A wallet-enriched result must use a new versioned artifact and must
-be reported as a new experiment.
+Earlier GraphSAGE artifacts used pool and counterparty nodes. Those results
+remain tied to the older input version. The 2026-10-03 wallet-graph report now
+records a separate participant-aware experiment under this contract; that
+report is evidence of a run, not independent reproduction in this checkout.
+Every future run must identify its own input version and validated artifacts.
+
+The 2026-10-05 system expansion does not change this Task A graph shape or
+label/split. Scam graphs follow [SCAM_TASK_CONTRACT.md](SCAM_TASK_CONTRACT.md)
+and use distinct graph-view versions. The current native MeanSAGE trainer
+consumes node_features and edge_index, not the stored edge feature vectors;
+report the actual model inputs separately from the graph artifact schema.
 
 ## Prediction unit and graph shape
 
@@ -73,9 +80,11 @@ replaced with a different field or with a fabricated address. The row is
 retained for audit, and the wallet-graph build records the missing-participant
 status and excludes or flags the affected graph according to the run policy.
 
-The current normalized event artifacts do not contain these participant
-fields. They therefore do not satisfy this contract and cannot be used to
-claim that the wallet-enriched graph has been evaluated.
+Older normalized event artifacts without these participant fields do not
+satisfy this contract. The 2026-10-03 report records a newer collection with
+participant coverage; each supplied artifact still requires the checks below.
+Do not infer compliance from a filename or silently substitute an older
+participant-free product when newer artifacts are unavailable.
 
 ### Current Graph source mapping
 
