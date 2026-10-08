@@ -10,4 +10,4 @@ config/*
 !config/model_split.json
 __pycache__
 .pytest_cache
-.DS_Store
+.vite/
