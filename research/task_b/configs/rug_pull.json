@@ -1,0 +1,11 @@
+{
+  "config_version": "task-b-training-1",
+  "task_id": "rug_pull",
+  "seed": 20261008,
+  "graph": {"builder_name": "token_v2", "window_days": 30, "hops": 2, "fanouts": [32, 16], "max_nodes": 512, "max_edges": 4096, "seed": 20261008},
+  "collection": {"allow_network": false, "token_actions": ["getLogs", "txlist", "txlistinternal"], "page_size": 1000, "rate_limit_rps": 3, "retries": 3, "max_pages": 10, "max_requests": 10000},
+  "experiment_mode": "supervised",
+  "data_only": true,
+  "execution_status": "data_pipeline_only",
+  "label_scope": "historical Uniswap v2 malicious liquidity withdrawal, requires independently supported incident evidence"
+}

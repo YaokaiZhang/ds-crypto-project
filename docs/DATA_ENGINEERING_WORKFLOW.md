@@ -7,7 +7,7 @@ for exploratory analysis and modelling.
 As of the 2026-10-05 scope revision, this is the retained Task A workflow and
 the foundation for the shared system data layer. Proposed entity/event,
 evidence/label, task-view and serving extensions are defined in
-[SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md](SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md)
+[SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md](SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md)
 and [SCAM_TASK_CONTRACT.md](SCAM_TASK_CONTRACT.md). They are not yet implemented
 by the existing token SQL tables. Preserve task-specific event semantics and
 keep supervised labels separate from label-free inference graphs. Incremental
@@ -15,7 +15,7 @@ collection feeds versioned snapshots; it does not imply online retraining.
 
 Practical source selection, collector behavior, graph exchange fields, label
 evidence review, and pilot admission are detailed in
-[PLATFORM_ENGINEERING_AND_DATA_GUIDE.zh-CN.md](PLATFORM_ENGINEERING_AND_DATA_GUIDE.zh-CN.md).
+[PLATFORM_ENGINEERING_AND_DATA_GUIDE.md](PLATFORM_ENGINEERING_AND_DATA_GUIDE.md).
 The two business backends reuse normalized facts through task-specific views;
 their labels and experiment artifacts remain separate.
 

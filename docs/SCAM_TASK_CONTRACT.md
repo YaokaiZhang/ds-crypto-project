@@ -1,13 +1,15 @@
 # Classic Scam Screening Task Contract
 
-Version: scam-task-contract-0.1. Adopted: 2026-10-05.
-Status: requirements and design; the repository does not yet implement or validate these tasks.
+Version: scam-task-contract-0.2. Revised: 2026-10-08.
+Status: data pipelines and Phishing/Ponzi offline training code implemented;
+Honeypot/Rug Pull data-only. Synthetic engineering checks only; no real-data
+training, weights, performance claims, simulation, or services.
 
 This contract extends the system scope in [GOAL.md](../GOAL.md). It does not
 change Task A's token outcome, selected-pool scope, 7-day observation window,
 90-day follow-up, or primary split. See the
-[system design](SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md) and
-[TrxLLM review](TRXLLM_REFERENCE_REVIEW.zh-CN.md) for evidence and rationale.
+[system design](SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md) and
+[TrxLLM review](TRXLLM_REFERENCE_REVIEW.md) for evidence and rationale.
 
 ## 1. Tasks, entities, and permissible claims
 
@@ -16,6 +18,12 @@ change Task A's token outcome, selected-pool scope, 7-day observation window,
 | `phishing_address` | Ethereum address with documented role | Evidence supports the specified malicious phishing role | Every counterparty, victim, router, or related deployer is malicious |
 | `ponzi_contract` | Ethereum contract | Evidence supports a Ponzi mechanism under the source's audited definition | Inactivity, repeated payments, or a star graph proves Ponzi |
 | `honeypot_sell_restriction` | Ethereum token contract | Documented deceptive sell restriction under specified state/conditions | A missing sell, one reverted swap, or a high graph score proves universal inability to sell |
+| `rug_pull_liquidity_v2` | Ethereum token with verified Uniswap v2 pool/event mapping | Evidence supports malicious liquidity withdrawal and controller/fund-flow attribution | Ordinary LP withdrawal, reserve decline, inactivity, or a router as Burn.sender proves fraud |
+
+CLI task names are `phishing`, `ponzi`, `honeypot`, and `rug_pull`.
+They are independent, potentially overlapping binary tasks. Transaction
+inputs resolve related entities; they neither inherit entity labels nor
+produce transaction-level verdicts. V3 and other rug mechanisms are excluded.
 
 Classic contract exploit-lure honeypots require a separate subtype and label
 version; they must not be silently merged with ERC20 sell-restriction cases.
@@ -57,7 +65,7 @@ not population estimates on independently verified benign entities.
 
 ## 3. Time and graph views
 
-The proposed reconstructable graph view `scam-egonet-0.1` uses one graph per
+The implemented reconstructable graph view `scam-egonet-1.0` uses one graph per
 target and cutoff, with a default trailing 30-day interval `(cutoff-30d,
 cutoff]`. This is a design choice to test, not a claim about a source dataset.
 The exact window, hop count, direction policy, per-hop budget, and sampling
@@ -155,6 +163,6 @@ insufficient_evidence and model_unavailable are not healthy labels.
 Scores support investigation, not automatic public accusations or trading.
 
 Each branch advances from data-admitted to offline-evaluated to shadow-only
-to limited-release only with recorded evidence. All three branches remain
+to limited-release only with recorded evidence. All four branches remain
 in project scope; an unavailable branch is honestly marked as unavailable
 rather than filled with demo results or another task's predictions.

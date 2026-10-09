@@ -4,7 +4,7 @@ This plan implements [GOAL.md](GOAL.md). The system scope was expanded on
 2026-10-05 to include independent classic scam-screening tasks and a shared
 data/graph/service platform. The detailed requirements, dependencies,
 acceptance gates and effort estimates are in
-[SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md](docs/SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md).
+[SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md](docs/SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md).
 
 ## System delivery sequence
 
@@ -25,19 +25,27 @@ acceptance gates and effort estimates are in
    broad live generalization claims.
    Route the common frontend through separately callable Token and Scam
    backends, and expose independent per-task EDA and benchmark results. Follow
-   [the engineering/data guide](docs/PLATFORM_ENGINEERING_AND_DATA_GUIDE.zh-CN.md)
+   [the engineering/data guide](docs/PLATFORM_ENGINEERING_AND_DATA_GUIDE.md)
    for GraphSample interfaces, experiment archives, and the small self-data
    collection/label-adjudication pilot before scaling collection.
 6. **P5 - Optional research:** compare relation-aware SAGE, train-period
    pretraining and shared multi-task weights. Keep independent models if
    joint training causes unacceptable task degradation.
 
-All three classic scam branches remain in scope, but deployment readiness is
+All four classic scam branches remain in scope, but deployment readiness is
 gated separately. Within the original five-week coursework budget, prioritize
 Task A plus one rigorous scam graph experiment and a unified demonstration;
-do not promise full three-class live validation and multi-task pretraining
+do not promise full four-task live validation and multi-task pretraining
 without additional data and resources. Newly collected token outcomes need
 approximately 97 days from t0 to mature, plus ingestion/verification delay.
+
+The 2026-10-09 Task B code delivery formally includes Ethereum Uniswap v2
+malicious liquidity withdrawal. Phishing/Ponzi implement offline data,
+graph, training and evaluation interfaces; Honeypot/Rug Pull implement data
+and initial graphs only. Synthetic checks verify engineering contracts;
+no real training dataset, fitted model or performance claim is delivered.
+Use the existing root uv environment. See
+[the implementation guide](docs/TASK_B_IMPLEMENTATION.md).
 
 ## Retained Task A research work packages
 

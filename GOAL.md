@@ -4,19 +4,22 @@
 
 Build a unified, evidence-backed system with two task families: early
 prediction of low-volume token outcomes (Task A), and classic scam-pattern
-screening for phishing addresses, Ponzi contracts, and explicitly defined
-honeypot cases (Task B). Share point-in-time event infrastructure, graph
+screening for phishing addresses, Ponzi contracts, explicitly defined
+honeypot cases, and Uniswap v2 malicious liquidity withdrawal (Task B).
+Share point-in-time event infrastructure, graph
 building interfaces, GraphSAGE implementation tools, evaluation discipline,
 and an eventual query/evidence service. Keep labels, graph semantics, model
 weights and calibration separate initially.
 
 This is an explicit scope/architecture contract change adopted on
 2026-10-05. The authoritative design and feasibility assessment is
-[SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md](docs/SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md).
+[SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md](docs/SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md).
 Task B is governed by [SCAM_TASK_CONTRACT.md](docs/SCAM_TASK_CONTRACT.md).
-The [TrxLLM reference review](docs/TRXLLM_REFERENCE_REVIEW.zh-CN.md) explains
-what can be reused and what must be corrected. These are design commitments,
-not claims that new scam models or production services are implemented.
+The [TrxLLM reference review](docs/TRXLLM_REFERENCE_REVIEW.md) explains
+what can be reused and what must be corrected. The 2026-10-08 code release
+implements offline data/graph pipelines and Phishing/Ponzi training interfaces;
+Honeypot/Rug Pull remain data-only. No real Task B training or services have
+been validated. See [the implementation guide](docs/TASK_B_IMPLEMENTATION.md).
 
 Relative to the original Canvas, scam screening is the original downstream
 task and token activity analysis is the added downstream task. Relative to
@@ -24,7 +27,7 @@ the current repository, token modelling is already implemented while scam
 services still need implementation. The engineering deliverable is a unified
 frontend accessing two independently callable analysis backends, sharing a
 graph protocol and GraphSAGE framework, with separate per-task EDA and model
-results. See the [platform and self-collected data guide](docs/PLATFORM_ENGINEERING_AND_DATA_GUIDE.zh-CN.md).
+results. See the [platform and self-collected data guide](docs/PLATFORM_ENGINEERING_AND_DATA_GUIDE.md).
 
 The common research question is whether cutoff-bounded neighborhood behavior
 adds useful information over matched non-graph baselines across distinct
@@ -34,7 +37,7 @@ graph, shared weights, or a single combined risk probability.
 ### System deliverables and release boundaries
 
 1. Retain the Task A data, labels, split and experiments described below.
-2. Add separate, auditable phishing, Ponzi and honeypot task specifications,
+2. Add separate, auditable phishing, Ponzi, honeypot and v2 liquidity rug-pull task specifications,
    data cards, graph/feature baselines and evidence-based acceptance gates.
    Deliver each branch as trained screening, rule/case analysis, or explicitly
    unavailable according to demonstrated data support; never use demo scores

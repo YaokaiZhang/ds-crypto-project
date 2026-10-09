@@ -1,8 +1,15 @@
 data
-.venv
+# uv
+.venv/
+.python-version
+.uv/
+.vite/
+.agents/
+.claude/
+.codex/
+.impeccable/
+
 tests
-uv.lock
-pyproject.toml
 .env
 logs
 config/*
@@ -10,4 +17,6 @@ config/*
 !config/model_split.json
 __pycache__
 .pytest_cache
-.vite/
+.DS_Store
+build/
+*.egg-info/

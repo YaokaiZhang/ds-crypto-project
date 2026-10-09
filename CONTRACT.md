@@ -12,14 +12,16 @@ change; it does not relabel historical experiments or change Task A's
 numerical outcome/window/split rules.
 
 The adopted system design is
-[SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md](docs/SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.zh-CN.md).
+[SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md](docs/SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md).
 Task B follows [SCAM_TASK_CONTRACT.md](docs/SCAM_TASK_CONTRACT.md).
 Reference-method limitations are documented in
-[TRXLLM_REFERENCE_REVIEW.zh-CN.md](docs/TRXLLM_REFERENCE_REVIEW.zh-CN.md).
-New task models and online services remain to be implemented and validated.
+[TRXLLM_REFERENCE_REVIEW.md](docs/TRXLLM_REFERENCE_REVIEW.md).
+Task B data and offline training code is implemented as described in
+[the implementation guide](docs/TASK_B_IMPLEMENTATION.md). No real Task B
+dataset, trained weights, performance results, or online services are released.
 
 The engineering boundary is further specified in
-[PLATFORM_ENGINEERING_AND_DATA_GUIDE.zh-CN.md](docs/PLATFORM_ENGINEERING_AND_DATA_GUIDE.zh-CN.md):
+[PLATFORM_ENGINEERING_AND_DATA_GUIDE.md](docs/PLATFORM_ENGINEERING_AND_DATA_GUIDE.md):
 a common frontend/platform API routes to independently callable token and
 scam backends. They share a versioned graph container and GraphSAGE framework,
 not necessarily topology, feature semantics, scalers, or weights. Separate
@@ -28,6 +30,37 @@ data analyses and performance artifacts are required. Preserve historical
 reports and keep online assessments distinct from offline benchmarks.
 
 ### System-wide rules
+
+Documentation convention revised on 2026-10-09: project Markdown documentation
+is written in English, with language-neutral filenames. The former `zh-CN`
+guides have been translated and renamed, and their references updated. This
+changes documentation language and naming, not task scope or historical results.
+
+Implementation boundaries are further specified in
+[TASK_B_CODEBASE_AND_SERVING_PLAN.md](docs/TASK_B_CODEBASE_AND_SERVING_PLAN.md)
+(2026-10-08 design refinement): additive Task B research modules, a shared
+Python runtime package, an independent Nuxt application, and a separate
+Python inference service. Preserve Task A entrypoints and artifacts until
+checkpoint/input compatibility is verified. This records a design, not an
+implemented service. The 2026-10-08 scope revision admits a fourth Task B
+mechanism: Ethereum Uniswap v2 malicious liquidity withdrawal. Honeypot and
+rug-pull are data-only branches in this release; their training and historical
+execution simulation remain future work.
+
+Task B uses `packages/chainrisk/`, `research/task_b/`, and `checks/`.
+TaskSpec, source adapters, graph strategies, backbone and loss registries share
+code without sharing task weights. The user-selected local environment is
+the existing arm64 Python 3.11 `.venv`, managed by the root `pyproject.toml`
+and `uv.lock`. Task A scripts and historical artifacts are preserved; its
+previous remote environment is not silently migrated. This release is code
+and synthetic engineering checks only: no real training data collection or
+formal model training. Applications and deployment are excluded.
+
+Repository layout adopted on 2026-10-08: user-facing projects live under
+`apps/`; the reference Vue/Vite demo has moved to `apps/frontend/`.
+`deploy/` contains documented placeholders for inference_service, worker
+and registry. Nuxt conversion and model serving remain unimplemented.
+These additions do not change Task A training entrypoints or experiment rules.
 
 - Keep activity outcomes and scam labels separate. No inactivity-as-fraud
   mapping, unknown-as-benign mapping, or unvalidated universal risk score.
