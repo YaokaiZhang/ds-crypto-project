@@ -1,0 +1,1 @@
+"""Application template extension point."""

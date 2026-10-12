@@ -15,6 +15,14 @@ dependencies = [
   "openpyxl>=3.1,<4",
 ]
 
+[project.optional-dependencies]
+serving = [
+  "fastapi>=0.115,<1",
+  "pydantic>=2.9,<3",
+  "uvicorn>=0.30,<1",
+  "httpx>=0.27,<0.29",
+]
+
 [project.scripts]
 chainrisk-task-b = "research.task_b.cli:main"
 

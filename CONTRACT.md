@@ -38,11 +38,18 @@ changes documentation language and naming, not task scope or historical results.
 
 Implementation boundaries are further specified in
 [TASK_B_CODEBASE_AND_SERVING_PLAN.md](docs/TASK_B_CODEBASE_AND_SERVING_PLAN.md)
-(2026-10-08 design refinement): additive Task B research modules, a shared
-Python runtime package, an independent Nuxt application, and a separate
-Python inference service. Preserve Task A entrypoints and artifacts until
-checkpoint/input compatibility is verified. This records a design, not an
-implemented service. The 2026-10-08 scope revision admits a fourth Task B
+(2026-10-08 codebase refinement): additive Task B research modules and a shared
+Python runtime package. The website architecture revision adopted on 2026-10-12
+is [WEBSITE_ARCHITECTURE.md](apps/docs/WEBSITE_ARCHITECTURE.md): reconstruct the Vue/Vite
+frontend, use a modular FastAPI application, a separate analysis worker with
+process-local model loading, and a separate single-owned homepage RPC feed.
+This supersedes the unimplemented Nuxt/Nitro plan; a separate inference HTTP
+process is optional when resources justify it. Theme tokens, UI primitives and
+a semantic icon adapter allow later style/icon replacement. Preserve Task A
+entrypoints and artifacts until checkpoint/input compatibility is verified.
+The website templates are now implemented as recorded in
+[TEMPLATE_DEVELOPMENT.md](apps/docs/TEMPLATE_DEVELOPMENT.md); collection, durable
+jobs, model serving and the homepage stream remain unimplemented. The 2026-10-08 scope revision admits a fourth Task B
 mechanism: Ethereum Uniswap v2 malicious liquidity withdrawal. Honeypot and
 rug-pull are data-only branches in this release; their training and historical
 execution simulation remain future work.
@@ -54,13 +61,18 @@ the existing arm64 Python 3.11 `.venv`, managed by the root `pyproject.toml`
 and `uv.lock`. Task A scripts and historical artifacts are preserved; its
 previous remote environment is not silently migrated. This release is code
 and synthetic engineering checks only: no real training data collection or
-formal model training. Applications and deployment are excluded.
+formal model training. Applications and deployment were excluded from that
+offline release; the separate 2026-10-12 website scaffold supplies only empty
+frontend and explicit unimplemented backend integration boundaries.
 
 Repository layout adopted on 2026-10-08: user-facing projects live under
 `apps/`; the reference Vue/Vite demo has moved to `apps/frontend/`.
 `deploy/` contains documented placeholders for inference_service, worker
-and registry. Nuxt conversion and model serving remain unimplemented.
-These additions do not change Task A training entrypoints or experiment rules.
+and registry. The old demo has been replaced by the Vue/Vite template, and `apps/backend/`
+contains a runnable FastAPI shell plus class/method templates. Real model
+serving and the homepage feed remain unimplemented. Deployment owns
+operations; backend application logic will live in `apps/backend/`. These
+design additions do not change Task A training entrypoints or experiment rules.
 
 - Keep activity outcomes and scam labels separate. No inactivity-as-fraud
   mapping, unknown-as-benign mapping, or unvalidated universal risk score.

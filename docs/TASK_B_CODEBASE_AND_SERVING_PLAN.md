@@ -1,4 +1,4 @@
-# Task B codebase extension, Nuxt demo and independent inference plan
+# Task B codebase extension and Vue/FastAPI serving plan
 
 Design date: 2026-10-08; implementation update: 2026-10-09. Task B data pipelines
 and Phishing/Ponzi offline training code are implemented. Honeypot/Rug Pull
@@ -8,9 +8,13 @@ no real training dataset, formal training or online service is delivered.
 The earlier layout migration created deployment responsibility guides and moved
 the Vue reference to `apps/frontend/`. Runnable commands are in the
 [implementation guide](TASK_B_IMPLEMENTATION.md) and
-[Task B README](../research/task_b/README.md). Nuxt, deployment services, the
-Task A checkpoint adapter and historical simulation remain future work; the
-shared package and Task B offline entrypoint now exist.
+[Task B README](../research/task_b/README.md). Website services, the Task A checkpoint adapter and historical simulation
+remain future work; the shared package and Task B offline entrypoint now exist.
+The website design was revised on 2026-10-12: [WEBSITE_ARCHITECTURE.md](../apps/docs/WEBSITE_ARCHITECTURE.md)
+supersedes the unimplemented Nuxt/Nitro plan with Vue/Vite, modular FastAPI,
+separate analysis/feed workers and replaceable theme/icon adapters. This is an
+application architecture contract revision, not an implemented service or a
+change to research model definitions.
 
 This plan follows the [project contract](../CONTRACT.md),
 [scam contract](SCAM_TASK_CONTRACT.md),
@@ -19,6 +23,11 @@ repository-structure reviews. It refines code/service boundaries without changin
 Task A labels, windows, splits or historical experiments. Rug Pull is formally
 included, initially limited to malicious Ethereum Uniswap v2 liquidity withdrawal.
 Real data and model performance remain unvalidated.
+
+Website skeleton update: the legacy frontend has been removed and replaced
+with empty panels/routes, and `apps/backend/` contains a runnable FastAPI shell
+plus class/method templates. Real integration remains future work. See
+[template development](../apps/docs/TEMPLATE_DEVELOPMENT.md).
 
 ## 1. Boundaries established by the existing code
 
@@ -65,28 +74,26 @@ ds-crypto-project/
     configs/                     # Task graph/model/loss/split/evaluation settings
     train.py evaluate.py export.py
   pyproject.toml uv.lock         # Existing shared local uv environment
-  apps/                          # User-selected application root
-    frontend/                    # Current Vue reference; future Nuxt migration
-      package.json package-lock.json nuxt.config.ts
-      app/                       # Nuxt 4 source: pages/components/layouts/assets
-      server/api/                # Browser-facing jobs, queries and results
-      server/utils/              # Python service, cache and status adapters
-      shared/                    # TypeScript request/result types
-      fixtures/                  # Explicit demo samples, never training truth
-      public/                    # Public static assets only
-  deploy/
-    inference_service/           # HTTP entrypoint and model lifecycle
-    worker/                      # Collection, graphs and optional simulation
-    registry/                    # Manifests; weights separately mounted read-only
+  apps/
+    frontend/                    # Vue/Vite application reconstruction
+      src/                       # pages, composed panels, API and presenters
+        design/                  # semantic tokens/themes/icon mapping
+        components/ui/           # replaceable app UI primitives
+    backend/                     # Future FastAPI application source
+      app/                       # routes, orchestration, adapters and workers
+  deploy/                        # Service launch/container/proxy responsibilities
+    inference_service/           # Optional later isolated predictor
+    worker/                      # Analysis/feed worker deployment
+    registry/                    # Approved manifests and read-only bundle mounts
     requirements.lock Dockerfile compose.yaml
   checks/                        # Tracked compatibility and isolation checks
   reports/task_b/<task>/<run>/
   data/task_b/<task>/<snapshot>/  # Ignored raw/normalized/graph/label artifacts
 ```
 
-An application project root and Nuxt's internal `app/` are separate levels.
-Nuxt 4 generates routes from internal `app/pages/`.
-[Nuxt routing](https://nuxt.com/docs/4.x/getting-started/routing)
+Vue Router handles SPA routes in the frontend. Vite build output is statically
+hosted; the same-origin API is provided by FastAPI, not a frontend server.
+The directory examples are target responsibilities, not newly created code.
 
 Deployment owns service entrypoints and operations; the shared package owns
 models, deterministic feature conversion and prediction. Services should not
@@ -180,11 +187,12 @@ and sampling-prevalence limitations accompany metrics.
 ## 6. Shared implementations, isolated state
 
 ```text
-research/task_b -> packages/chainrisk <- deploy/inference_service
+research/task_b -> packages/chainrisk <- apps/backend analysis worker
                          ^
             Future Task A legacy adapter
 
-apps/frontend/server -> HTTP -> deploy/inference_service
+apps/frontend -> HTTP -> apps/backend FastAPI -> persisted jobs/results
+Optional later inference HTTP service uses the same chainrisk runtime.
 ```
 
 Inference resolves requests, checks quality, builds cutoff-bounded inputs,
@@ -207,45 +215,37 @@ scores on fixed graphs against a separate legacy adapter. Temporary duplication
 must record provenance and compatibility version. Task B models remain defined
 only in the shared package, not duplicated in services.
 
-## 7. Nuxt and Python service responsibilities
+## 7. Vue/Vite and FastAPI service responsibilities
+
+The authoritative application blueprint is
+[WEBSITE_ARCHITECTURE.md](../apps/docs/WEBSITE_ARCHITECTURE.md). It defines the selected page
+contents, durable job lifecycle, graph/score identity, REST/SSE contracts,
+provider/graph/model adapters, frontend composition and future theme/icon swaps.
 
 ```text
-Browser -> Nuxt/Nitro API -> Python inference HTTP service
-                                  |
-                       Registry / cached graphs / worker
+Vue/Vite SPA -> same-origin FastAPI -> durable jobs/results
+                                        ^
+                        analysis worker -> chainrisk and approved bundles
+                        independent feed worker -> Ethereum RPC
 ```
 
-Nuxt handles browser requests, validation, jobs and result assembly. Python handles
-PyTorch and graph inputs. Nuxt does not launch training through a shell or
-reimplement models. [Nitro](https://nuxt.com/docs/3.x/guide/concepts/server-engine),
-[Nuxt shared directory](https://nuxt.com/docs/4.x/directory-structure/shared)
+The browser submits one analysis request and reads its state/artifacts. It does
+not orchestrate individual provider/graph/predict calls. Worker input graphs are
+persisted and used both for inference and a readable graph-display adapter.
+Current-state enrichment is temporally separate from model input. Independent
+per-task failures retain usable results. Source credentials and weights remain
+server-side. Frozen models load once per inference process; training entrypoints
+are not called by the web application.
 
-Migration creates a Nuxt project rather than adding Nuxt to the existing Vite
-backend. Reuse components/CSS/layouts, convert views to pages and custom routing
-to file routes, and migrate entrypoints to app.vue/layouts. An initial SPA can
-use `ssr=false` while retaining a running server API; static generation alone
-does not provide a backend. Browser graph components need lifecycle/SSR checks.
-[Nuxt configuration](https://nuxt.com/docs/4.x/api/nuxt-config)
+Reconstruct Vue routes and shared panels; keep `/analyses/:id` for real state
+rather than fixed addresses/timers. Theme tokens and semantic AppIcon mappings
+separate appearance from task semantics. Demo fixtures remain explicit; missing
+models return unavailable status and never silently substitute fixture scores.
 
-Use `/analyses/[id]` and actual pending/running/completed/partial/failed states
-instead of fixed addresses/timers. Limit to supported Ethereum tasks, with
-separate Task A/Scam displays. Safety, accuracy, cross-chain and live claims must
-follow project evidence. Display graphs can be cropped but must disclose how
-they differ from model inputs.
-
-Demo fixtures return a common schema with visible demo provenance and no Python
-dependency. Inference calls Python; missing models return `model_unavailable`,
-never fixture fallbacks. Preserve reference provenance/known permissions without
-copying node_modules, build outputs or proprietary performance claims.
-
-Proposed endpoints are `POST /api/analyses` and `GET /api/analyses/:id`, with
-per-task status, score/meaning, predicted label, evidence, cutoff, quality,
-model version and result origin. Scores can be null. Cache keys include
-chain/entity/task/cutoff and graph/feature/model/evidence versions.
-
-Service addresses/credentials use server runtime configuration. Browsers call
-same-origin APIs. Public assets do not contain checkpoints, raw datasets, secrets
-or full model paths.
+The first deployment uses a modular API plus separate analysis/feed processes;
+an extra HTTP inference service is optional. Legacy Task A adapters and accepted
+limited Honeypot/v2 Rug training remain subject to their existing input/model
+acceptance conditions. No new service has been implemented by this revision.
 
 ## 8. Phases and acceptance
 
@@ -254,8 +254,8 @@ or full model paths.
 | P0 | Admit a real dataset; freeze graph/label/split/feature schemas and ignore exceptions | Parseable samples, explicit polarity/unknown/time semantics, tracked configs/locks |
 | P1 | Shared package, label-free conversion, future Task A legacy predictor/export | Preserved entrypoints; matching checkpoint/graph scores within registered tolerance |
 | P2 | Phishing data/graph/train/evaluate/predict pipeline | Matched tabular/graph samples; evaluation and unlabeled prediction agree |
-| P3 | Future Nuxt demo, types and UI migration | Independent build/run, explicit demo/unknown/failure states |
-| P4 | Future inference service/registry/Nuxt integration | One-time model loading and clear missing/history/timeout/partial states |
+| P3 | Vue/Vite reconstruction, typed APIs and theme/icon adapters | Independent build/run, explicit demo/unknown/failure states |
+| P4 | FastAPI, durable jobs, registry, analysis/feed worker integration | One-time model loading and clear missing/history/timeout/partial states |
 | P5 | Ponzi framework and Honeypot/v2 Rug data branches | Independent data cards/evidence; real training and token models need later acceptance |
 
 P3 can proceed independently of P1/P2 data preparation. Establish one rigorous
