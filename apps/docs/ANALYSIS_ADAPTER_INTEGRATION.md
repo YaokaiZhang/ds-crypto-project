@@ -218,3 +218,9 @@ cd /scratch/project_2020551/ds-crypto-project
 kill $(cat .runtime/api.pid) $(cat .runtime/feed.pid)
 scripts/start-demo-feed.sh
 ```
+
+Forecast presentation refinement: the score uses the shared workbench numeric
+output, meter and outcome badge. Observation, horizon, volume boundary and
+explanation occupy a separate Forecast details card. This is presentation only;
+continued-activity score semantics and the prohibition on scam risk bands stay
+unchanged. The entry form has no example-token button.
