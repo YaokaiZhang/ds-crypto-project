@@ -53,7 +53,7 @@ redirect; it is not an RPC implementation.
 | `/token-forecast` | Task A early activity forecast | Token in selected pools; first seven days predict subsequent 90-day low-volume outcome |
 | `/eth-scam` | Ethereum address/contract screening | Phishing for addresses; Ponzi for eligible contracts |
 | `/token-scam` | ERC-20 analysis workspace | Token Honeypot/v2 Rug Pull, plus explicitly targeted Ponzi/Phishing analyses |
-| `/analyses/:id` | Persistent job/result detail | Internal route; no extra top-level navigation required |
+| `/analyses/:id` | Historical proposal, removed on 2026-10-13 | No saved-analysis browser page or history controls |
 
 Keep “ETH Scam” if desired, but use the subtitle “Ethereum Address & Contract
 Screening”. Restricting it to contracts would omit phishing address targets.

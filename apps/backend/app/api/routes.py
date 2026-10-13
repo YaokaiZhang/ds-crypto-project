@@ -12,17 +12,22 @@ router = APIRouter()
 Services = Annotated[Container, Depends(get_container)]
 
 @router.get('/health/live', tags=['health'])
-def live():
-    return {'status': 'ok', 'mode': 'template'}
+def live(services: Services):
+    return {'status': 'ok', 'mode': 'demo' if services.demo else 'template'}
 
 @router.get('/health/ready', tags=['health'], responses={503: {'description': 'Template integrations are unavailable'}})
-def ready():
+async def ready(services: Services):
+    feed_ready = bool(services.feed_store and services.feed_store.snapshot(1)['status'] == 'live')
+    if services.demo:
+        return {'status': 'ready', 'mode': 'demo', 'components': {'analysis': True, 'inference': False, 'feed': feed_ready}}
     return JSONResponse(status_code=503, content={'status': 'not_ready', 'mode': 'template',
-        'components': {'repository': False, 'providers': False, 'inference': False, 'feed': False}})
+        'components': {'repository': False, 'providers': False, 'inference': False, 'feed': feed_ready}})
 
 @router.get('/capabilities', tags=['capabilities'])
-def capabilities():
-    return {'mode': 'template', 'analysis_enabled': False, 'feed_enabled': False,
+def capabilities(services: Services):
+    if services.demo:
+        return {**services.demo.capabilities(), 'feed_enabled': services.feed_store is not None}
+    return {'mode': 'template', 'analysis_enabled': False, 'feed_enabled': services.feed_store is not None,
             'tasks': [{'task_id': spec.task_id, 'entity': spec.entity,
                        'graph_family': spec.graph_family, 'stage': spec.stage,
                        'model_available': False} for spec in TASK_STRATEGIES.values()]}
@@ -46,7 +51,10 @@ async def get_activity(analysis_id: UUID, services: Services):
 
 @router.get('/analyses/{analysis_id}/transactions', response_model=TransactionPage, tags=['analyses'])
 async def get_transactions(analysis_id: UUID, services: Services,
-                           limit: Annotated[int, Query(ge=1, le=100)] = 30, cursor: str | None = None):
+                           limit: Annotated[int, Query(ge=1, le=100)] = 30, cursor: str | None = None,
+                           category: Annotated[str | None, Query(pattern='^(external|internal|token_transfer|pool_event)$')] = None):
+    if services.demo:
+        return await services.analysis.transactions(str(analysis_id), limit, cursor, category)
     return await services.analysis.transactions(str(analysis_id), limit, cursor)
 
 @router.get('/analyses/{analysis_id}/events', response_class=StreamingResponse, tags=['analyses'])

@@ -1,4 +1,4 @@
-"""Runnable FastAPI template. Business endpoints explicitly return HTTP 501."""
+"""FastAPI application with optional analysis demo and independent live feed."""
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -14,12 +14,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI):
         application.state.container = build_container(settings)
+        if application.state.container.demo:
+            await application.state.container.demo.start()
         try:
             yield
         finally:
+            if application.state.container.demo:
+                await application.state.container.demo.close()
             application.state.container.close()
 
-    application = FastAPI(title='Chainrisk API template', version='0.1.0', lifespan=lifespan)
+    application = FastAPI(title='Chainrisk API', version='0.1.0', lifespan=lifespan)
 
     @application.exception_handler(FeatureNotImplemented)
     async def not_implemented(_request: Request, error: FeatureNotImplemented):

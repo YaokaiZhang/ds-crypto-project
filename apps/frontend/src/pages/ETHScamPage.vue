@@ -2,4 +2,4 @@
 import AnalysisWorkbench from '@/components/analysis/AnalysisWorkbench.vue';
 </script>
 
-<template><h1>ETH Scam</h1><AnalysisWorkbench family="eth_scam" /></template>
+<template><AnalysisWorkbench family="eth_scam" /></template>

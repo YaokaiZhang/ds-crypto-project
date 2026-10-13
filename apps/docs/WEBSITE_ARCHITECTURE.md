@@ -156,6 +156,11 @@ tasks when scope permits; do not merge task tensors/results merely to save work.
 
 ## 6. Homepage feed lifecycle
 
+Implemented locally on 2026-10-13 with a separate worker and shared SQLite/WAL
+store protected by an OS ownership lock. This is a local persistence refinement;
+PostgreSQL/shared leases remain required for multi-host deployment. See
+[feed integration](FEED_INTEGRATION.md) for configuration and exact retention limits.
+
 One backend owner watches new blocks over supported WebSocket newHeads or HTTP
 height polling. Fetch each observed block once with full transaction objects;
 persist cursor, hash/parent continuity and source state. Recover missed ranges
@@ -163,7 +168,7 @@ and replace affected entries after reorganization within the supported recent
 window. Bound catch-up work and distinguish a degraded/gapped feed explicitly.
 
 Maintain a bounded fresh sample instead of queueing every Ethereum transaction
-for slow one-per-second playback. Publish at most one NEW sampled transaction
+for slow one-per-second playback. Publish at most two NEW positive-native-ETH sampled transactions
 per second to a shared sequence, and fan it out to clients. No new transaction
 means no invented row. Serve the latest 20-30 rows initially; browser pause/reading
 position must not cause historical backlog on resume.
@@ -181,8 +186,19 @@ on-demand graph collection and never triggers all-task inference for each row.
 
 ## 7. Frontend, style and icon replacement
 
-Pages: Home, ETH Scam, Token Scam, persistent `/analyses/:id` detail. Token
-Forecast remains deferred. Keep page/workbench composition separate from data
+Pages: Home, ETH Scam, Token Scam and Forecast placeholder. The saved-analysis
+page and `/analyses/:id` browser route were removed at the user's request on
+2026-10-13. Analysis IDs still identify current jobs and their read endpoints. The
+2026-10-12 user-confirmed navigation amendment uses Forecast / ETH / ERC-20:
+the Chainrisk brand links to Home (`/`), ETH keeps `/eth-scam`, and ERC-20 keeps
+`/token-scam`. Forecast links to `/forecast`, showing only `To be implemented`;
+Token Forecast integration remains deferred. This changes navigation labels and
+adds a placeholder destination, not task IDs, analysis flows or model scope.
+Home retains the shared backend ETH RPC transaction-summary dashboard; complete
+scam workbenches remain on their own pages. The proposed visual treatment is in
+[the visual direction brief](VISUAL_DIRECTION_BRIEF.md), subject to confirmation;
+the page-content specifications remain authoritative.
+Keep page/workbench composition separate from data
 fetching. Composables such as useAnalysis/useFeed own lifecycle, refresh and
 subscriptions; dispose connections on unmount. Page view adapters translate
 domain DTOs into panel inputs without redefining thresholds or task eligibility.

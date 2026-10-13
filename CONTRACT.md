@@ -31,6 +31,50 @@ reports and keep online assessments distinct from offline benchmarks.
 
 ### System-wide rules
 
+Workbench interaction revision requested on 2026-10-13: ETH and ERC-20 open with
+one centered address field; submission transitions to a three-column frosted-glass
+workspace. Analysis context and independent risk results form a sticky left rail,
+Graph View occupies the center, Basic Information/activity the right, and a
+ten-row paginated ledger spans the center and right below. Redundant explanatory
+copy and graph plot labels are removed; node/edge summaries remain available on
+hover/focus. This changes page interaction/presentation, not data fields or task
+semantics. See [workbench glass refinement](apps/docs/WORKBENCH_GLASS_REFINEMENT.md).
+
+Homepage feed integration revision requested on 2026-10-13: implement the adopted
+single-owned real Ethereum mainnet RPC feed with a separate collector, bounded
+sampling, receipt enrichment and replayable SSE. PublicNode is the default source,
+overridable with a server-only RPC URL. The local application uses SQLite/WAL and
+an OS ownership lock shared by API readers and one worker; multi-host deployment
+requires a shared transactional store/lease. The feed is enabled independently of
+analysis demo mode. The subsequent homepage refinement publishes at most two rows
+per second, filters strictly positive native ETH values, and adds approximate USD
+amounts from a separately cached public Coinbase ETH/USD quote with explicit
+source/time and expiry. Etherscan links remain inspection links only. See
+[feed integration](apps/docs/FEED_INTEGRATION.md).
+
+Application integration revision requested on 2026-10-13: an explicitly enabled,
+removable synthetic analysis adapter exercises the ETH smart-contract and ERC-20
+workbenches with backend delays, replayable progress events and production-shaped
+response envelopes. This extends the application contract, not model admission.
+Default template mode remains unavailable; demo responses retain synthetic origin
+in API metadata and capabilities never claim real weights. The user requested no
+demo marker in the local testing UI. The saved-analysis page, browser route and
+all reopen-history controls are removed by the same user request. Analysis IDs
+remain internal job/artifact identities. See
+[analysis adapter integration](apps/docs/ANALYSIS_ADAPTER_INTEGRATION.md).
+The subsequent demo-only input revision accepts any syntactically valid Ethereum
+address and selects one of two frozen JSON scenarios by page family. Transaction
+data and outcomes stay fixed; only address aliases and job/sample identities are
+bound to the request. This does not broaden real task/model scope.
+
+Website navigation refinement confirmed on 2026-10-12: use Forecast / ETH /
+ERC-20, with the Chainrisk brand returning Home. Preserve existing ETH/Token
+analysis URLs and workflows; Forecast adds only a `To be implemented`
+placeholder. Home keeps the shared ETH RPC transaction-summary dashboard.
+This is a navigation-only contract revision; Task A integration remains deferred
+and task/model/data contracts are unchanged. See
+[website architecture](apps/docs/WEBSITE_ARCHITECTURE.md) for the route mapping.
+
 Documentation convention revised on 2026-10-09: project Markdown documentation
 is written in English, with language-neutral filenames. The former `zh-CN`
 guides have been translated and renamed, and their references updated. This
@@ -49,7 +93,7 @@ a semantic icon adapter allow later style/icon replacement. Preserve Task A
 entrypoints and artifacts until checkpoint/input compatibility is verified.
 The website templates are now implemented as recorded in
 [TEMPLATE_DEVELOPMENT.md](apps/docs/TEMPLATE_DEVELOPMENT.md); collection, durable
-jobs, model serving and the homepage stream remain unimplemented. The 2026-10-08 scope revision admits a fourth Task B
+jobs, model serving remains unimplemented; the homepage feed is implemented separately as recorded above. The 2026-10-08 scope revision admits a fourth Task B
 mechanism: Ethereum Uniswap v2 malicious liquidity withdrawal. Honeypot and
 rug-pull are data-only branches in this release; their training and historical
 execution simulation remain future work.
@@ -70,7 +114,7 @@ Repository layout adopted on 2026-10-08: user-facing projects live under
 `deploy/` contains documented placeholders for inference_service, worker
 and registry. The old demo has been replaced by the Vue/Vite template, and `apps/backend/`
 contains a runnable FastAPI shell plus class/method templates. Real model
-serving and the homepage feed remain unimplemented. Deployment owns
+serving remains unimplemented. The later homepage feed revision is recorded above. Deployment owns
 operations; backend application logic will live in `apps/backend/`. These
 design additions do not change Task A training entrypoints or experiment rules.
 

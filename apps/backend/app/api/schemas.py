@@ -41,6 +41,9 @@ class TaskResult(ApiModel):
     model_version: str | None = None
     risk_band: Literal['low', 'medium', 'high'] | None = None
     risk_band_policy_version: str | None = None
+    decision: str | None = None
+    calibration: str | None = None
+    explanation: str | None = None
 
     @model_validator(mode='after')
     def validate_score_provenance(self) -> 'TaskResult':
@@ -55,23 +58,125 @@ class AnalysisResult(ApiModel):
     status: str
     target: str
     tasks: list[TaskResult]
+    family: AnalysisFamily | None = None
+    result_origin: str = 'unavailable'
+    snapshot_id: str | None = None
+    stage: str = 'queued'
+    message: str | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+    cutoff: AwareDatetime | None = None
+    cutoff_block: int | None = None
+    cutoff_block_hash: str | None = None
+    window_start: AwareDatetime | None = None
+    basic_information: 'BasicInformation | None' = None
+    graphs: dict[TaskId, 'GraphView'] = Field(default_factory=dict)
+    activity: 'ActivitySeries | None' = None
+    transactions: 'TransactionPage | None' = None
+
+class InformationField(ApiModel):
+    key: str
+    label: str
+    value: str
+    hint: str
+
+class SelectedPool(ApiModel):
+    address: Address
+    token0: Address
+    token1: Address
+    protocol: str
+    paired_asset: str
+
+class BasicInformation(ApiModel):
+    entity_type: str
+    name: str
+    symbol: str | None = None
+    decimals: int | None = None
+    balance_wei: str | None = None
+    total_supply_raw: str | None = None
+    state_time: AwareDatetime
+    state_block: int
+    source_verification: str
+    compiler: str
+    deployment_transaction: str
+    deployer: Address
+    pools: list[SelectedPool] = Field(default_factory=list)
+    fields: list[InformationField]
+
+class GraphContext(ApiModel):
+    sample_id: str
+    task_id: TaskId
+    model_nodes: int
+    model_edges: int
+    window: str
+    cutoff: AwareDatetime
+    version: str
+    sampling: str
 
 class GraphView(ApiModel):
     sample_id: str
     task_id: TaskId
     nodes: list[dict[str, Any]]
     edges: list[dict[str, Any]]
+    context: GraphContext | None = None
+
+class ActivityPoint(ApiModel):
+    date: str
+    covered: bool
+    inflow_wei: str | None = None
+    outflow_wei: str | None = None
+    external_count: int | None = None
+    transfer_count: int | None = None
+    swap_count: int | None = None
+    mint_count: int | None = None
+    burn_count: int | None = None
 
 class ActivitySeries(ApiModel):
     scope: dict[str, Any]
-    points: list[dict[str, Any]]
+    points: list[ActivityPoint]
+
+class AssetAmount(ApiModel):
+    asset: str
+    raw: str
+    decimals: int
+
+class LedgerRow(ApiModel):
+    id: str
+    category: Literal['external', 'internal', 'token_transfer', 'pool_event']
+    hash: str
+    block_number: int
+    block_time: AwareDatetime
+    from_address: Address | None = None
+    to_address: Address | None = None
+    direction: str | None = None
+    value_raw: str | None = None
+    decimals: int | None = None
+    asset: str | None = None
+    status: Literal['success', 'failed', 'unknown']
+    method: str | None = None
+    trace_id: str | None = None
+    log_index: int | None = None
+    pool: Address | None = None
+    event: str | None = None
+    amounts: list[AssetAmount] = Field(default_factory=list)
+    gas_used: str | None = None
+    gas_price_wei: str | None = None
+    transaction_index: int | None = None
+    emitter: Address | None = None
+    event_data: dict[str, str] | None = None
 
 class TransactionPage(ApiModel):
-    items: list[dict[str, Any]]
+    items: list[LedgerRow]
     next_cursor: str | None = None
+    category: str | None = None
+    total: int = 0
+
+AnalysisResult.model_rebuild()
 
 class FeedTransaction(ApiModel):
     hash: str
+    block_hash: str
+    transaction_index: int
     from_address: str
     to_address: str | None
     block_number: int
@@ -79,9 +184,24 @@ class FeedTransaction(ApiModel):
     value_wei: str
     gas_limit: str
     gas_used: str | None = None
-    status: str | None = None
+    effective_gas_price_wei: str | None = None
+    execution_fee_wei: str | None = None
+    status: Literal['success', 'failed'] | None = None
+
+class FeedUsdQuote(ApiModel):
+    price: str = Field(pattern=r'^\d+(\.\d+)?$', max_length=40)
+    fetched_at: AwareDatetime
+    source: str
 
 class FeedSnapshot(ApiModel):
     status: str
     transactions: list[FeedTransaction]
     updated_at: AwareDatetime | None = None
+    checked_at: AwareDatetime | None = None
+    head_block: int | None = None
+    head_time: AwareDatetime | None = None
+    sequence: int = 0
+    message: str | None = None
+    last_gap_at: AwareDatetime | None = None
+    source: str = 'Ethereum Mainnet RPC'
+    usd_quote: FeedUsdQuote | None = None

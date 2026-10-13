@@ -5,6 +5,29 @@ unimplemented integrations. This is the selected basis for subsequent website
 development. No chain scraping, persistent jobs, graph renderer, real inference,
 SSE stream or homepage scanner is delivered by this scaffold.
 
+Frontend refinement on 2026-10-13: the Transaction Graph component now has a
+validated SVG display adapter, deterministic layout, node/edge hover and selected
+details, progressive entrance, keyboard inspection, fit/zoom/pan and reduced motion.
+The [graph implementation guide](TRANSACTION_GRAPH_DESIGN.md) defines its explicit
+display-record boundary and separate synthetic development preview. Backend graph
+presentation, real graph fetching, collection and inference remain unimplemented;
+analysis pages show an unavailable state until a real task sample is supplied.
+
+Whole-site refinement on 2026-10-13: Home, ETH, ERC-20, Forecast
+and not-found routes now share the dark glass shell and twelve-scene canvas
+background. Workbenches have family-specific information, independent task
+unavailability, activity placeholders and ledger category switching. Home calls
+the real read-only snapshot endpoint, validates its envelope and shows a failure
+state when unavailable. The user subsequently removed the saved-analysis page.
+This implements frontend presentation, not analysis creation, durable storage,
+real charts, model scoring or SSE streaming. See
+[website visual implementation](WEBSITE_VISUAL_IMPLEMENTATION.md).
+
+Subsequent integration on 2026-10-13 adds a removable backend synthetic adapter,
+real HTTP job creation, replayable SSE phases, progressive graph/score delivery,
+activity rendering and typed ledger pagination. Production collection and model
+serving remain unimplemented. See [analysis adapter integration](ANALYSIS_ADAPTER_INTEGRATION.md).
+
 ## Source layout
 
 ```text
@@ -29,7 +52,7 @@ apps/docs/                      application designs and this guide
 | Presentation | GraphViewPresenter.present; RootAnalyticsBuilder.aggregate | Exact graph provenance plus readable event joins, scoped root/token statistics. |
 | Analysis | AnalysisService.create; AnalysisPipeline.resolve_context/execute | Persist, freeze context, orchestrate stages and preserve partial task results. |
 | Feed | EthereumRpcProvider; PostgresFeedRepository; FeedCollector; FeedWorker | Shared cursor/reorg-aware scanning, bounded fresh sample and actual SSE events. |
-| Frontend | Empty panel slots, presenters, useAnalysis/useFeed | Bind real DTOs, implement graph/chart renderers and enable queries after capability checks. |
+| Frontend | Workbench panels, graph renderer, presenters, useAnalysis/useFeed | Bind real analysis DTOs, implement activity charts and enable queries after capability checks. Feed snapshot refresh is connected; SSE is not. |
 | Style/icons | Theme tokens, AppIcon registry, resolveChartTheme | Replace provider/theme centrally; retain semantic state and component contracts. |
 
 HTTP and data-source details stay outside task semantics. Templates use Protocol
@@ -55,3 +78,10 @@ Use the [frontend README](../frontend/README.md) and
 [backend README](../backend/README.md) for startup/check commands. The
 [website architecture](WEBSITE_ARCHITECTURE.md) remains the target deployment;
 this guide records which of its boundaries now exist only as templates.
+
+## Homepage integration update: 2026-10-13
+
+The feed template boundary is now replaced when `FEED_ENABLED=true`, independently
+of analysis mode. A separate single-owned worker scans real Ethereum blocks and
+provides persisted samples and replayable SSE to homepage readers. The default
+disabled feed remains HTTP 501. See [feed integration](FEED_INTEGRATION.md).

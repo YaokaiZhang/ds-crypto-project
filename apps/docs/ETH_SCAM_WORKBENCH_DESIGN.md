@@ -1,5 +1,11 @@
 # ETH Scam layout content specification
 
+> Presentation revision, 2026-10-13: [Workbench glass refinement](WORKBENCH_GLASS_REFINEMENT.md)
+> supersedes the earlier ETH/ERC-20 query/panel composition, graph plot labels,
+> workbench typography and panel material below. It preserves field inventories,
+> task/model meanings, graph provenance and inspection semantics. Home, shared
+> navigation and accepted background styling retain their own authority.
+
 Date: 2026-10-12. Status: selected first-release display scope, recorded at the
 user's request. This revision supersedes this document's earlier broad panel
 catalog and layout alternatives. It determines content, not visual styling.
