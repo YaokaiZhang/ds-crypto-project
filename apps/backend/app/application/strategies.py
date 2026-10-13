@@ -19,3 +19,6 @@ TASK_STRATEGIES = {
     task_id: TaskStrategy(task_id, spec.entity, spec.graph_family, spec.stage)
     for task_id, spec in TASK_REGISTRY.items()
 }
+
+# Task A metadata only: no research model or provider is loaded.
+TASK_STRATEGIES['continued_activity'] = TaskStrategy('continued_activity', 'token', 'wallet_pool_token', 'unavailable')

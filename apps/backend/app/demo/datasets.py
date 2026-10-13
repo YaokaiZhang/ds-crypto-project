@@ -1,4 +1,4 @@
-"""Load two frozen JSON scenarios; never generate transactions at request time.
+"""Load frozen JSON scenarios; never generate transactions at request time.
 
 Only address aliases and analysis/sample identities are adapted per request.
 All observations, amounts, timestamps, charts and outcomes remain fixed.
@@ -14,7 +14,7 @@ import re
 from ..api.schemas import AnalysisRequest, AnalysisResult
 
 FIXTURE_DIRECTORY = Path(__file__).with_name('fixtures')
-FIXTURE_FILES = {'eth_scam': 'eth_scam.json', 'token_scam': 'token_scam.json'}
+FIXTURE_FILES = {'eth_scam': 'eth_scam.json', 'token_scam': 'token_scam.json', 'forecast': 'forecast.json'}
 ADDRESS_PATTERN = re.compile(r'^0x[0-9a-f]{40}$')
 
 
@@ -26,7 +26,7 @@ def iso(value: datetime) -> str:
     return value.isoformat().replace('+00:00', 'Z')
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=3)
 def _load_fixture(family: str) -> tuple[dict, str]:
     raw = (FIXTURE_DIRECTORY / FIXTURE_FILES[family]).read_bytes()
     fixture = json.loads(raw)
@@ -37,7 +37,11 @@ def _load_fixture(family: str) -> tuple[dict, str]:
 ETH_TARGET = _load_fixture('eth_scam')[0]['metadata']['default_target']
 TOKEN_TARGET = _load_fixture('token_scam')[0]['metadata']['default_target']
 POOL = _load_fixture('token_scam')[0]['metadata']['pools'][0]
-CUTOFF = datetime.fromisoformat(_load_fixture('eth_scam')[0]['result']['cutoff'])
+def fixture_cutoff(family: str) -> datetime:
+    return datetime.fromisoformat(_load_fixture(family)[0]['result']['cutoff'])
+
+
+CUTOFF = fixture_cutoff('eth_scam')
 PROFILES = [{key: _load_fixture(family)[0]['metadata'][key] for key in ('family', 'name', 'pools')}
             | {'target': _load_fixture(family)[0]['metadata']['default_target']}
             for family in FIXTURE_FILES]

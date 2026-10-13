@@ -18,19 +18,28 @@ class AnalysisRequest(ApiModel):
 
     @model_validator(mode='after')
     def validate_scope(self) -> 'AnalysisRequest':
-        allowed = ('phishing', 'ponzi') if self.family == 'eth_scam' else ('honeypot', 'rug_pull')
+        allowed = {'eth_scam': ('phishing', 'ponzi'), 'token_scam': ('honeypot', 'rug_pull'),
+                   'forecast': ('continued_activity',)}[self.family]
         if not self.tasks:
             self.tasks = list(allowed)
         if len(set(self.tasks)) != len(self.tasks) or any(task not in allowed for task in self.tasks):
             raise ValueError('Tasks must be unique and belong to the selected family')
         if self.family == 'eth_scam' and self.pools:
-            raise ValueError('Pool scope is only supported for token_scam')
+            raise ValueError('Pool scope is only supported for token analyses')
         if len(set(self.pools)) != len(self.pools):
             raise ValueError('Pool addresses must be unique')
         return self
 
     def to_command(self) -> AnalysisCommand:
         return AnalysisCommand(self.target, self.family, tuple(self.tasks), self.cutoff, tuple(self.pools), self.chain_id)
+
+class ForecastDefinition(ApiModel):
+    observation_days: Literal[7] = 7
+    horizon_days: Literal[90] = 90
+    swap_volume_threshold_usd: Literal['1000'] = '1000'
+    score_target: Literal['continued_activity'] = 'continued_activity'
+    outcome: Literal['continued_activity', 'low_volume_dead']
+    decision_policy_version: str
 
 class TaskResult(ApiModel):
     task_id: TaskId
@@ -44,6 +53,7 @@ class TaskResult(ApiModel):
     decision: str | None = None
     calibration: str | None = None
     explanation: str | None = None
+    forecast: ForecastDefinition | None = None
 
     @model_validator(mode='after')
     def validate_score_provenance(self) -> 'TaskResult':
@@ -51,6 +61,13 @@ class TaskResult(ApiModel):
             raise ValueError('Scores require an ok status, input sample and model version')
         if self.risk_band is not None and (self.score is None or not self.risk_band_policy_version):
             raise ValueError('Risk bands require a score and an admitted band policy version')
+        if self.task_id == 'continued_activity':
+            if self.risk_band is not None or self.risk_band_policy_version is not None:
+                raise ValueError('Activity forecasts cannot carry scam risk bands')
+            if self.score is not None and (self.forecast is None or self.decision != self.forecast.outcome):
+                raise ValueError('Forecast scores require matching outcome semantics')
+        elif self.forecast is not None:
+            raise ValueError('Forecast semantics belong only to continued_activity')
         return self
 
 class AnalysisResult(ApiModel):

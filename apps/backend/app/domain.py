@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal, TypeAlias
 
-TaskId: TypeAlias = Literal['phishing', 'ponzi', 'honeypot', 'rug_pull']
-AnalysisFamily: TypeAlias = Literal['eth_scam', 'token_scam']
+TaskId: TypeAlias = Literal['phishing', 'ponzi', 'honeypot', 'rug_pull', 'continued_activity']
+AnalysisFamily: TypeAlias = Literal['eth_scam', 'token_scam', 'forecast']
 GraphSample: TypeAlias = dict[str, Any]
 
 @dataclass(frozen=True)

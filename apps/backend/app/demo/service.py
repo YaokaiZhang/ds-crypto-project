@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 
 from ..api.schemas import AnalysisRequest
 from ..settings import Settings
-from .datasets import CUTOFF, POOL, PROFILES, build_dataset, iso
+from .datasets import fixture_cutoff, POOL, PROFILES, build_dataset, iso
 
 
 class DemoAnalysisService:
@@ -45,7 +45,7 @@ class DemoAnalysisService:
                 'feed_enabled': False, 'events_enabled': True, 'profiles': PROFILES,
                 'tasks': [{'task_id': task, 'entity': 'contract' if task == 'ponzi' else 'address' if task == 'phishing' else 'token',
                            'model_available': False, 'assessment_available': True,
-                           'result_origin': 'synthetic'} for task in ('phishing', 'ponzi', 'honeypot', 'rug_pull')]}
+                           'result_origin': 'synthetic'} for task in ('phishing', 'ponzi', 'honeypot', 'rug_pull', 'continued_activity')]}
 
     def _read(self, identity: str) -> dict:
         row = self.db.execute('SELECT payload FROM jobs WHERE id=?', (identity,)).fetchone()
@@ -78,8 +78,9 @@ class DemoAnalysisService:
     async def create(self, command, idempotency_key: str | None = None) -> dict:
         if command.pools and command.pools != (POOL,):
             raise HTTPException(422, 'Pool is outside the configured token scope')
+        cutoff = fixture_cutoff(command.family)
         request = AnalysisRequest(target=command.target, family=command.family, tasks=list(command.tasks),
-                                  cutoff=command.cutoff or CUTOFF, pools=list(command.pools))
+                                  cutoff=command.cutoff or cutoff, pools=list(command.pools))
         body = request.model_dump(mode='json')
         fingerprint = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
         if idempotency_key:
@@ -92,7 +93,7 @@ class DemoAnalysisService:
         now = iso(datetime.now(timezone.utc))
         result = {'analysis_id': identity, 'target': command.target, 'family': command.family,
                   'status': 'queued', 'stage': 'queued', 'result_origin': 'synthetic',
-                  'created_at': now, 'updated_at': now, 'cutoff': iso(CUTOFF),
+                  'created_at': now, 'updated_at': now, 'cutoff': iso(cutoff),
                   'message': 'Analysis accepted', 'tasks': [{'task_id': task, 'status': 'pending'} for task in command.tasks],
                   'graphs': {}, 'activity': None, 'transactions': None, 'basic_information': None}
         job = {'command': body, 'result': result, 'ledger': [], 'events': [
@@ -124,7 +125,7 @@ class DemoAnalysisService:
                 facts['transactions'] = await self.transactions(identity, 30, None)
                 self._stage(identity, 'building_graph', 'Preparing task-specific transaction graphs', facts)
                 await asyncio.sleep(1.3 * self.scale)
-                self._stage(identity, 'predicting', 'Transaction graphs ready; evaluating independent task models',
+                self._stage(identity, 'predicting', 'Transaction graphs ready; preparing task outcomes',
                             {'graphs': prepared['graphs'], 'tasks': [
                                 {'task_id': task, 'status': 'predicting', 'sample_id': prepared['graphs'][task]['sample_id']}
                                 for task in command.tasks]})
