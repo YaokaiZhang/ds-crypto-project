@@ -198,3 +198,23 @@ ANALYSIS_MODE=demo DEMO_DATABASE_PATH="$PWD/.runtime/analysis.sqlite3" \
 Forecast does not change or load research checkpoints, feature transforms,
 training splits or external providers. Removing the fixture adapter leaves the
 same unavailable template boundary as ETH and ERC-20.
+
+## Expanded Forecast fixture and service startup
+
+Forecast uses its frozen scenario for every valid Ethereum address, with only
+address aliases changed. Its seven-day graph now includes 30 synthetic swap
+senders, one pool and the target token (32 nodes, 31 relations). Ledger sender
+identities agree with graph observations; activity counts and amounts remain fixed.
+It uses the same interactive graph renderer as ETH and ERC-20.
+
+On Roihu, run `scripts/start-demo-feed.sh` from the repository root to start the
+fixture API and independent live Ethereum collector. Both use explicit repository
+`.runtime` database, PID and log paths. Override `CHAINRISK_PYTHON` for another
+Python installation. Existing running processes managed by those PID files are
+left running; after configuration or fixture changes, stop them before restarting.
+
+```bash
+cd /scratch/project_2020551/ds-crypto-project
+kill $(cat .runtime/api.pid) $(cat .runtime/feed.pid)
+scripts/start-demo-feed.sh
+```
