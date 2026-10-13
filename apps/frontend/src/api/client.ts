@@ -12,7 +12,7 @@ export class ApiClient {
     const headers = new Headers(options.headers);
     if (options.body !== undefined) headers.set('Content-Type', 'application/json');
     const response = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
-    const body: unknown = await response.json();
+    const body: unknown = response.ok ? await response.json() : await response.json().catch(() => null);
     if (!response.ok) throw new ApiError(response.status, body);
     return body as T;
   }

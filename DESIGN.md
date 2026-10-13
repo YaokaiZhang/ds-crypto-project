@@ -380,7 +380,8 @@ page must not substitute for server pagination.
 
 The Chainrisk wordmark returns Home. The shared capsule contains Forecast, ETH
 and ERC-20. Links brighten on hover; the current route receives a translucent
-light fill. Forecast's page content is only `To be implemented`. Ledger categories
+light fill. Forecast uses the same three-column analysis workbench, with an activity outcome
+in the left result slot and first-seven-day observed activity on the right. Ledger categories
 use text buttons with a pale underline on the selected category. All interactive
 controls inherit visible keyboard focus; reduced motion removes transitions.
 

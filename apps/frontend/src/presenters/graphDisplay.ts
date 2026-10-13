@@ -24,7 +24,7 @@ export interface GraphScene {
   nodes: PositionedNode[]; edges: PositionedEdge[]; width: number; height: number; minX: number; minY: number;
 }
 export const taskNames: Record<TaskId, string> = {
-  phishing: 'Phishing', ponzi: 'Ponzi', honeypot: 'Honeypot', rug_pull: 'Rug Pull',
+  phishing: 'Phishing', ponzi: 'Ponzi', honeypot: 'Honeypot', rug_pull: 'Rug Pull', continued_activity: 'Activity forecast',
 };
 const roles: NodeRole[] = ['wallet', 'contract', 'token', 'pool', 'deployer', 'lp', 'unknown'];
 const optionalText = (value: unknown): string | null => typeof value === 'string' && value.trim() ? value : null;

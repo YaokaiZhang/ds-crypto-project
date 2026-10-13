@@ -31,6 +31,17 @@ reports and keep online assessments distinct from offline benchmarks.
 
 ### System-wide rules
 
+Forecast application revision requested on 2026-10-13: replace the placeholder
+and discarded frontend-only implementation with the canonical analysis job/result
+workflow. Forecast uses the backend frozen fixture adapter, shared workbench,
+persisted jobs and replayable progress events. Its `forecast` family has one
+`continued_activity` task: first-seven-day observations, followed by a 90-day
+selected-pool swap-volume outcome at the USD 1,000 boundary. No real models or
+external analysis APIs are integrated. Fixture scores are synthetic and
+uncalibrated, and never carry scam risk bands. This extends the application
+contract without changing Task A research rules. See
+[analysis adapter integration](apps/docs/ANALYSIS_ADAPTER_INTEGRATION.md).
+
 Workbench interaction revision requested on 2026-10-13: ETH and ERC-20 open with
 one centered address field; submission transitions to a three-column frosted-glass
 workspace. Analysis context and independent risk results form a sticky left rail,

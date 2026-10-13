@@ -47,8 +47,8 @@ of competitive superiority or validated model performance.
 
 - Navigation, confirmed on 2026-10-12: Forecast / ETH / ERC-20. The Chainrisk
   brand returns Home. ETH and ERC-20 retain `/eth-scam` and `/token-scam`;
-  `/forecast` displays only `To be implemented`. This navigation refinement
-  does not enable forecasting or rename the underlying analysis tasks.
+  `/forecast` uses the shared analysis workbench and canonical frozen fixture
+  workflow (2026-10-13); real Forecast models and APIs remain unavailable.
 
 - Home presents a sampled recent Ethereum transaction feed. It carries freshness
   and coverage information, not scam verdicts.
@@ -80,8 +80,8 @@ of competitive superiority or validated model performance.
   Ethereum Uniswap v2 malicious liquidity-withdrawal screening. Neither supports
   universal safety claims or unvalidated future-incident predictions.
 - Preserve independent task scores and meanings. No combined safety score,
-  unknown-as-benign mapping, or low-activity-as-fraud mapping. Token Forecast is
-  deferred and Task A remains a separate research task.
+  unknown-as-benign mapping, or low-activity-as-fraud mapping. Forecast exposes a synthetic continued-activity outcome; Task A remains
+  a separate research task.
 - Unavailable scores remain null with reasons. A score is not automatically a
   calibrated probability. Low/Medium/High bands require an admitted, versioned
   display policy; Low Risk never guarantees safety.

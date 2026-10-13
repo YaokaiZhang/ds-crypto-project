@@ -8,7 +8,8 @@ selected ETH/Token Scam contents and homepage feed determine this design.
 Replace the earlier unimplemented Nuxt/Nitro application plan; preserve all
 research labels, graph recipes, training entrypoints and historical artifacts.
 This is a website architecture contract revision, not a model-contract revision.
-Token Forecast integration remains deferred.
+Forecast now uses the canonical frozen fixture/job workflow; real model and API
+integration remains deferred (2026-10-13).
 
 ## 1. Existing frontend and reconstruction boundary
 
@@ -186,14 +187,16 @@ on-demand graph collection and never triggers all-task inference for each row.
 
 ## 7. Frontend, style and icon replacement
 
-Pages: Home, ETH Scam, Token Scam and Forecast placeholder. The saved-analysis
+Pages: Home, ETH Scam, Token Scam and Forecast activity workbench. The saved-analysis
 page and `/analyses/:id` browser route were removed at the user's request on
 2026-10-13. Analysis IDs still identify current jobs and their read endpoints. The
 2026-10-12 user-confirmed navigation amendment uses Forecast / ETH / ERC-20:
 the Chainrisk brand links to Home (`/`), ETH keeps `/eth-scam`, and ERC-20 keeps
-`/token-scam`. Forecast links to `/forecast`, showing only `To be implemented`;
-Token Forecast integration remains deferred. This changes navigation labels and
-adds a placeholder destination, not task IDs, analysis flows or model scope.
+`/token-scam`. Forecast links to `/forecast` and, since 2026-10-13, uses the shared
+analysis flow with the `forecast` family and `continued_activity` task. Its frozen
+backend fixture observes the first seven days and forecasts selected-pool swap
+volume over the following 90 days at the USD 1,000 boundary. Research models and
+external analysis APIs remain unavailable; see ANALYSIS_ADAPTER_INTEGRATION.md.
 Home retains the shared backend ETH RPC transaction-summary dashboard; complete
 scam workbenches remain on their own pages. The proposed visual treatment is in
 [the visual direction brief](VISUAL_DIRECTION_BRIEF.md), subject to confirmation;

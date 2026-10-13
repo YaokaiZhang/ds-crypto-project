@@ -1,7 +1,7 @@
 // Starter DTOs mirror apps/backend/app/api/schemas.py.
 // Replace with generated OpenAPI types when the contract is extended.
-export type AnalysisFamily = 'eth_scam' | 'token_scam';
-export type TaskId = 'phishing' | 'ponzi' | 'honeypot' | 'rug_pull';
+export type AnalysisFamily = 'eth_scam' | 'token_scam' | 'forecast';
+export type TaskId = 'phishing' | 'ponzi' | 'honeypot' | 'rug_pull' | 'continued_activity';
 export interface AnalysisRequest {
   target: string;
   family: AnalysisFamily;
@@ -22,6 +22,7 @@ export interface TaskResult {
   decision: string | null;
   calibration: string | null;
   explanation: string | null;
+  forecast: { observation_days: 7; horizon_days: 90; swap_volume_threshold_usd: '1000'; score_target: 'continued_activity'; outcome: 'continued_activity' | 'low_volume_dead'; decision_policy_version: string } | null;
 }
 export interface AnalysisResult {
   analysis_id: string;

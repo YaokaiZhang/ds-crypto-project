@@ -1,1 +1,4 @@
-<template><div class="placeholder-page"><h1>To be implemented</h1></div></template>
+<script setup lang="ts">
+import AnalysisWorkbench from '@/components/analysis/AnalysisWorkbench.vue';
+</script>
+<template><AnalysisWorkbench family="forecast" /></template>
