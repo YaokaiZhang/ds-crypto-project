@@ -1,11 +1,11 @@
 {
-  "config_version": "task-b-training-1",
-  "task_id": "phishing",
-  "experiment_mode": "known_positive_vs_unlabeled",
+  "config_version": "scam-training-1",
+  "task_id": "ponzi",
+  "experiment_mode": "supervised",
   "seed": 20261008,
   "graph": {"builder_name": "address_flow", "window_days": 30, "hops": 2, "fanouts": [32, 16], "max_nodes": 512, "max_edges": 4096, "seed": 20261008},
   "collection": {"allow_network": false, "actions": ["txlist", "txlistinternal"], "page_size": 1000, "rate_limit_rps": 3, "retries": 3, "max_pages": 10, "max_requests": 10000},
-  "model": {"architecture_id": "mean_sage", "layers": 2, "hidden_dim": 64, "dropout": 0.2},
+  "model": {"architecture_id": "mean_sage", "layers": 2, "hidden_dim": 256, "dropout": 0.2},
   "loss": {"name": "weighted_bce"},
   "batch_size": 32,
   "epochs": 200,
@@ -15,8 +15,8 @@
   "min_delta": 0.0001,
   "device": "cpu",
   "training_as_of": null,
-  "fit_tabular_baselines": true,
+  "fit_tabular_baselines": false,
   "precision_at_k": 10,
-  "negative_meaning": "frozen label-blind unlabeled background, never verified benign",
+  "negative_meaning": "admitted source-specific non-Ponzi contracts, not globally non-scam",
   "execution_status": "configuration_only_not_trained"
 }

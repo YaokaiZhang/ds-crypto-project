@@ -240,7 +240,9 @@ def normalize_records(raw_rows: Iterable[dict[str, Any]],
                 if event["event_id"] in events:
                     duplicates.append(event["event_id"])
                     previous = events[event["event_id"]]
-                    core = ("src", "dst", "relation", "asset", "raw_amount", "timestamp", "block_number", "success")
+                    core = ("src", "dst", "relation", "asset", "raw_amount", "timestamp", "block_number", "success",
+                            "pool", "token0", "token1", "amount0_in", "amount1_in", "amount0_out", "amount1_out",
+                            "amount0", "amount1", "reserve0", "reserve1")
                     if any(previous.get(key) != event.get(key) for key in core):
                         raise ValueError("conflicting_duplicate_event")
                     for key in ("decimals", "block_hash"):

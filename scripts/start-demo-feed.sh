@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p .runtime
-export PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/apps/backend:$PWD/packages"
+export PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/apps/backend:$PWD"
 export ANALYSIS_MODE=demo FEED_ENABLED=true
 export DEMO_DATABASE_PATH="$PWD/.runtime/forecast-browser.sqlite3" FEED_DATABASE_PATH="$PWD/.runtime/feed.sqlite3"
 python_bin="${CHAINRISK_PYTHON:-/scratch/project_2020551/miniconda3/bin/python}"

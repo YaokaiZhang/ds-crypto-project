@@ -1,6 +1,6 @@
 """Task strategies share mechanics, not model state or positive meanings."""
 from dataclasses import dataclass
-from chainrisk.tasks import TASK_REGISTRY
+from packages.tasks import TASK_REGISTRY
 from ..domain import EntityResolution, TaskId
 from ..errors import FeatureNotImplemented
 

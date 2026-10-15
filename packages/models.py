@@ -1,4 +1,4 @@
-"""Native PyTorch backbones for independent Task B binary models."""
+"""Native PyTorch backbones for independent Scam binary models."""
 from __future__ import annotations
 
 from typing import Any, Mapping

@@ -1,7 +1,7 @@
-"""Task B offline training, matched baselines and frozen evaluation helpers.
+"""Scam offline training, matched baselines and frozen evaluation helpers.
 
 Importing this module or validating a configuration does not start training.
-Honeypot and rug-pull remain data-only branches in this release.
+All four tasks use independent frozen datasets and task-specific input schemas.
 """
 
 from __future__ import annotations
@@ -17,7 +17,8 @@ from types import MappingProxyType
 from typing import Any, Sequence
 
 from .splitting import PARTITIONS, _unix, assert_partition_isolation, experiment_record, task_name
-from chainrisk.tasks import get_task
+from packages.tasks import get_task
+from packages.progress import PROGRESS_MODES, progress_bar
 
 
 def validate_config(config: dict[str, Any]) -> dict[str, Any]:
@@ -55,10 +56,12 @@ def validate_config(config: dict[str, Any]) -> dict[str, Any]:
         "seed": 20261008, "batch_size": 32, "epochs": 200,
         "patience": 25, "learning_rate": 0.001, "weight_decay": 0.0001,
         "min_delta": 0.0001, "device": "cpu", "training_as_of": None,
-        "fit_tabular_baselines": True, "precision_at_k": 10,
+        "fit_tabular_baselines": True, "precision_at_k": 10, "progress": "auto",
     }
     for key, value in defaults.items():
         result.setdefault(key, value)
+    if result["progress"] not in PROGRESS_MODES:
+        raise ValueError("progress must be auto, on or off")
     for key in ("seed", "batch_size", "epochs", "patience", "precision_at_k"):
         if not isinstance(result[key], int) or isinstance(result[key], bool):
             raise ValueError(f"{key} must be an integer")
@@ -77,7 +80,7 @@ def merge_dataset(
     splits: Sequence[dict[str, Any]], config: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Join frozen artifacts and reject target/group, quality or time leakage."""
-    from chainrisk.graph import graph_is_usable, validate_graph_sample
+    from packages.graph import graph_is_usable, validate_graph_sample
     config = validate_config(config)
 
     def index(rows: Sequence[dict[str, Any]], label: str) -> dict[str, dict[str, Any]]:
@@ -122,6 +125,9 @@ def merge_dataset(
             raise ValueError(f"graph cutoff mismatch: {sample}")
         if canonical.get("chain_id", 1) != graph.get("chain_id", 1):
             raise ValueError(f"graph chain mismatch: {sample}")
+        if config["task_id"] in {"honeypot", "rug_pull"}:
+            if sorted(canonical.get("pool_addresses", [])) != graph["lineage"]["selected_pools"]:
+                raise ValueError(f"graph/label pool scope mismatch: {sample}")
         experiment.update(partition=split["partition"], split_group_id=split.get("split_group_id"))
         if experiment["partition"] == "train" and canonical["label_status"] != "unlabeled" and config["training_as_of"] is not None:
             available = _unix(canonical.get("label_available_at"))
@@ -144,6 +150,8 @@ def merge_dataset(
         recipe = {"builder": lineage.get("graph_builder"), "sampling": lineage.get("sampling")}
         if not recipe["builder"] or not isinstance(recipe["sampling"], dict):
             raise ValueError("training graphs require an explicit graph builder/sampling recipe")
+        if recipe["builder"] != get_task(config["task_id"]).graph_family:
+            raise ValueError("graph builder differs from task specification")
         if graph_recipe is not None and recipe != graph_recipe:
             raise ValueError("graph builder/sampling recipe differs within experiment")
         graph_recipe = copy.deepcopy(recipe)
@@ -258,14 +266,17 @@ def select_threshold(labels: Sequence[int], scores: Sequence[float]) -> float:
     return result
 
 
-def _score(model: Any, rows: Sequence[dict[str, Any]], scaler: dict[str, Any], device: Any, batch_size: int) -> tuple[list[int], list[float]]:
+def _score(model: Any, rows: Sequence[dict[str, Any]], scaler: dict[str, Any], device: Any, batch_size: int,
+           *, progress: str = "auto", description: str = "Scoring", position: int = 0,
+           leave: bool = True) -> tuple[list[int], list[float]]:
     import torch
-    from chainrisk.graph import batch_graph_samples
+    from packages.graph import batch_graph_samples
     labels: list[int] = []
     scores: list[float] = []
     model.eval()
-    with torch.inference_mode():
-        for start in range(0, len(rows), batch_size):
+    with torch.inference_mode(), progress_bar(range(0, len(rows), batch_size), mode=progress,
+            desc=description, unit="batch", position=position, leave=leave) as batches:
+        for start in batches:
             batch_rows = rows[start:start + batch_size]
             batch = batch_graph_samples([row["graph"] for row in batch_rows], scaler, device=device, add_reverse=True)
             scores.extend(torch.sigmoid(model(batch)).cpu().tolist())
@@ -273,8 +284,9 @@ def _score(model: Any, rows: Sequence[dict[str, Any]], scaler: dict[str, Any], d
     return labels, scores
 
 
-def evaluate(model: Any, rows: Sequence[dict[str, Any]], scaler: dict[str, Any], threshold: float = 0.5, device: Any = "cpu", batch_size: int = 32, k: int = 10) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    labels, scores = _score(model, rows, scaler, device, batch_size)
+def evaluate(model: Any, rows: Sequence[dict[str, Any]], scaler: dict[str, Any], threshold: float = 0.5, device: Any = "cpu", batch_size: int = 32, k: int = 10,
+             *, progress: str = "auto", description: str = "Evaluation") -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    labels, scores = _score(model, rows, scaler, device, batch_size, progress=progress, description=description)
     predictions = [{
         "sample_id": row["graph"]["sample_id"], "task_id": row["graph"]["task_id"],
         "target": row["graph"]["target"], "cutoff": row["graph"]["cutoff"],
@@ -320,19 +332,25 @@ def fit_tabular_baselines(rows: Sequence[dict[str, Any]], config: dict[str, Any]
     }
     partitions = {partition: [row for row in rows if row["supervision"]["partition"] == partition] for partition in PARTITIONS}
     results: dict[str, Any] = {}
-    for name, (model, neighborhood) in models.items():
-        arrays = {partition: np.asarray([tabular_features(row["graph"], neighborhood) for row in subset], dtype=float) for partition, subset in partitions.items()}
-        labels = {partition: [row["supervision"]["observed_target"] for row in subset] for partition, subset in partitions.items()}
-        if neighborhood:
-            counts = Counter(labels["train"])
-            weight = np.asarray([len(labels["train"]) / (2 * counts[label]) for label in labels["train"]])
-            model.fit(arrays["train"], labels["train"], sample_weight=weight)
-        else:
-            model.fit(arrays["train"], labels["train"])
-        scores = {partition: model.predict_proba(array)[:, 1].tolist() for partition, array in arrays.items()}
-        threshold = select_threshold(labels["validation"], scores["validation"])
-        results[name] = {"threshold": threshold, "metrics": {partition: metrics(labels[partition], scores[partition], threshold, config["precision_at_k"]) for partition in PARTITIONS}}
-        joblib.dump(model, output / f"{name}.joblib")
+    with progress_bar(models.items(), mode=config.get("progress", "auto"), desc="Tabular baselines", unit="model") as baselines:
+        for name, (model, neighborhood) in baselines:
+            baselines.set_description(f"Baseline: {name}")
+            arrays = {}
+            for partition, subset in partitions.items():
+                with progress_bar(subset, mode=config.get("progress", "auto"), desc=f"Features: {partition}",
+                                  unit="graph", position=1, leave=False) as samples:
+                    arrays[partition] = np.asarray([tabular_features(row["graph"], neighborhood) for row in samples], dtype=float)
+            labels = {partition: [row["supervision"]["observed_target"] for row in subset] for partition, subset in partitions.items()}
+            if neighborhood:
+                counts = Counter(labels["train"])
+                weight = np.asarray([len(labels["train"]) / (2 * counts[label]) for label in labels["train"]])
+                model.fit(arrays["train"], labels["train"], sample_weight=weight)
+            else:
+                model.fit(arrays["train"], labels["train"])
+            scores = {partition: model.predict_proba(array)[:, 1].tolist() for partition, array in arrays.items()}
+            threshold = select_threshold(labels["validation"], scores["validation"])
+            results[name] = {"threshold": threshold, "metrics": {partition: metrics(labels[partition], scores[partition], threshold, config["precision_at_k"]) for partition in PARTITIONS}}
+            joblib.dump(model, output / f"{name}.joblib")
     return results
 
 
@@ -342,9 +360,10 @@ def evaluate_bundle(
     config: dict[str, Any] | None = None, partition: str = "test",
     out: str | Path | None = None, *, dry_run: bool = False,
     device: str | None = None,
+    progress: str | None = None,
 ) -> dict[str, Any]:
     """Evaluate a frozen bundle without fitting, threshold selection or labels in prediction."""
-    from chainrisk.bundle import load_model_bundle, predict_bundle
+    from packages.bundle import load_model_bundle, predict_bundle
     if partition not in {*PARTITIONS, "all"}:
         raise ValueError("evaluation partition must be train, validation, test or all")
     manifest = json.loads((Path(bundle_path) / "manifest.json").read_text(encoding="utf-8"))
@@ -352,6 +371,8 @@ def evaluate_bundle(
     options = copy.deepcopy(config or frozen or {"task_id": manifest["task_id"]})
     if device is not None:
         options["device"] = device
+    if progress is not None:
+        options["progress"] = progress
     effective = validate_config(options)
     if frozen and effective["experiment_mode"] != frozen["experiment_mode"]:
         raise ValueError("evaluation experiment mode differs from the frozen model")
@@ -368,7 +389,12 @@ def evaluate_bundle(
             "threshold_selection_performed": False, "prediction_performed": False}
     device = resolve_device(effective["device"])
     bundle = load_model_bundle(bundle_path, device=device, expected_task=effective["task_id"])
-    predictions = predict_bundle(bundle, [row["graph"] for row in subset], device, effective["batch_size"])
+    predictions = []
+    with progress_bar(range(0, len(subset), effective["batch_size"]), mode=effective["progress"],
+                      desc=f"{effective['task_id']} evaluate {partition}", unit="batch") as batches:
+        for start in batches:
+            predictions.extend(predict_bundle(bundle,
+                [row["graph"] for row in subset[start:start + effective["batch_size"]]], device, effective["batch_size"]))
     by_sample = {row["sample_id"]: row for row in predictions}
     labels, scores, records = [], [], []
     for row in subset:
@@ -415,7 +441,7 @@ def resolve_device(name: str) -> str:
 
 def export_run(run_directory: str | Path, out: str | Path | None = None) -> dict[str, Any]:
     """Validate/copy the bundle already exported by train; never train again."""
-    from chainrisk.bundle import load_model_bundle
+    from packages.bundle import load_model_bundle
     source = Path(run_directory)
     if (source / "bundle" / "manifest.json").exists():
         source = source / "bundle"
@@ -445,9 +471,9 @@ def train(
     if dry_run:
         return summary
     import torch
-    from chainrisk.graph import batch_graph_samples, fit_scaler
-    from chainrisk.models import create_model
-    from chainrisk.bundle import export_model_bundle
+    from packages.graph import batch_graph_samples, fit_scaler
+    from packages.models import create_model
+    from packages.bundle import export_model_bundle
     output = Path(out)
     if output.exists() and any(output.iterdir()):
         raise ValueError(f"output directory must be empty: {output}")
@@ -469,40 +495,55 @@ def train(
     pos_weight = counts[0] / counts[1]
     best_state, best_ap, best_epoch, stale = None, -math.inf, 0, 0
     history: list[dict[str, Any]] = []
-    for epoch in range(1, config["epochs"] + 1):
-        model.train()
-        order = list(partitions["train"])
-        random.shuffle(order)
-        batches = [order[start:start + config["batch_size"]] for start in range(0, len(order), config["batch_size"])]
-        total_loss = 0.0
-        for batch_rows in batches:
-            batch = batch_graph_samples([row["graph"] for row in batch_rows], scaler, device=device, add_reverse=True)
-            targets = torch.tensor([row["supervision"]["observed_target"] for row in batch_rows], dtype=torch.float32, device=device)
-            optimizer.zero_grad(set_to_none=True)
-            loss = binary_loss(model(batch), targets, config["loss"], pos_weight)
-            if not torch.isfinite(loss):
-                raise ValueError("non-finite training loss")
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
-            optimizer.step()
-            total_loss += loss.item() * len(batch_rows)
-        labels, scores = _score(model, partitions["validation"], scaler, device, config["batch_size"])
-        report = metrics(labels, scores, k=config["precision_at_k"])
-        history.append({"epoch": epoch, "train_loss": total_loss / sum(map(len, batches)), "validation_average_precision": report["average_precision"]})
-        if report["average_precision"] > best_ap + config["min_delta"]:
-            best_state, best_ap, best_epoch, stale = copy.deepcopy(model.state_dict()), report["average_precision"], epoch, 0
-        else:
-            stale += 1
-        if stale >= config["patience"]:
-            break
+    with progress_bar(mode=config["progress"], total=config["epochs"],
+                      desc=f"{config['task_id']} epochs", unit="epoch") as epochs:
+        for epoch in range(1, config["epochs"] + 1):
+            model.train()
+            order = list(partitions["train"])
+            random.shuffle(order)
+            batches = [order[start:start + config["batch_size"]] for start in range(0, len(order), config["batch_size"])]
+            total_loss, seen = 0.0, 0
+            with progress_bar(batches, mode=config["progress"],
+                              desc=f"Train {epoch}/{config['epochs']}", unit="batch",
+                              position=1, leave=False) as batch_progress:
+                for batch_rows in batch_progress:
+                    batch = batch_graph_samples([row["graph"] for row in batch_rows], scaler, device=device, add_reverse=True)
+                    targets = torch.tensor([row["supervision"]["observed_target"] for row in batch_rows], dtype=torch.float32, device=device)
+                    optimizer.zero_grad(set_to_none=True)
+                    loss = binary_loss(model(batch), targets, config["loss"], pos_weight)
+                    if not torch.isfinite(loss):
+                        raise ValueError("non-finite training loss")
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+                    optimizer.step()
+                    loss_value = loss.item()
+                    total_loss += loss_value * len(batch_rows)
+                    seen += len(batch_rows)
+                    batch_progress.set_postfix(loss=loss_value, mean_loss=total_loss / seen, refresh=False)
+            labels, scores = _score(model, partitions["validation"], scaler, device, config["batch_size"],
+                                   progress=config["progress"], description="Validation", position=1, leave=False)
+            report = metrics(labels, scores, k=config["precision_at_k"])
+            history.append({"epoch": epoch, "train_loss": total_loss / seen, "validation_average_precision": report["average_precision"]})
+            if report["average_precision"] > best_ap + config["min_delta"]:
+                best_state, best_ap, best_epoch, stale = copy.deepcopy(model.state_dict()), report["average_precision"], epoch, 0
+            else:
+                stale += 1
+            epochs.set_postfix(train_loss=total_loss / seen, val_AP=report["average_precision"],
+                               best_AP=best_ap, patience=f"{stale}/{config['patience']}", refresh=False)
+            epochs.update(1)
+            if stale >= config["patience"]:
+                epochs.set_description(f"{config['task_id']} early stop")
+                break
     if best_state is None:
         raise ValueError("no validation checkpoint selected")
     model.load_state_dict(best_state)
-    labels, scores = _score(model, partitions["validation"], scaler, device, config["batch_size"])
+    labels, scores = _score(model, partitions["validation"], scaler, device, config["batch_size"],
+                           progress=config["progress"], description="Threshold validation")
     threshold = select_threshold(labels, scores)
     reports, predictions = {}, []
     for partition, subset in partitions.items():
-        report, records = evaluate(model, subset, scaler, threshold, device, config["batch_size"], config["precision_at_k"])
+        report, records = evaluate(model, subset, scaler, threshold, device, config["batch_size"], config["precision_at_k"],
+                                   progress=config["progress"], description=f"Evaluate {partition}")
         reports[partition] = report
         predictions.extend(records)
     summary.update(history=history, best_epoch=best_epoch, best_validation_average_precision=best_ap, threshold=threshold, pos_weight=pos_weight, metrics=reports, calibration_status="uncalibrated", test_use="scored only after checkpoint and threshold selection")

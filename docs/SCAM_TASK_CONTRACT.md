@@ -1,8 +1,7 @@
 # Classic Scam Screening Task Contract
 
-Version: scam-task-contract-0.2. Revised: 2026-10-08.
-Status: data pipelines and Phishing/Ponzi offline training code implemented;
-Honeypot/Rug Pull data-only. Synthetic engineering checks only; no real-data
+Version: scam-task-contract-0.3. Revised: 2026-10-15.
+Status: data pipelines and offline training code implemented for all four tasks. Synthetic engineering checks only; no real-data
 training, weights, performance claims, simulation, or services.
 
 This contract extends the system scope in [GOAL.md](../GOAL.md). It does not
@@ -64,6 +63,20 @@ known-positive-versus-unlabeled experiment. Its nominal FPR and precision are
 not population estimates on independently verified benign entities.
 
 ## 3. Time and graph views
+
+The 2026-10-15 token input revision is specified in
+[TOKEN_SCAM_TRAINING_PIPELINE.md](TOKEN_SCAM_TRAINING_PIPELINE.md).
+`token-v2-scoped-2.0` uses verified Ethereum Uniswap v2 token/pool identities,
+cutoff-bound metadata and `selected-token-pools-1.0` emitter coverage, with 35
+node and 17 edge features. Root/pool mechanism summaries cover the admitted
+emitter window; sampled topology/base statistics remain explicitly scoped.
+Selected pools are mandatory nodes. Token labels require matching pool scopes
+and bounded validity; Rug Pull positives additionally require incident time,
+transaction and controller evidence. Honeypot API supervision is explicitly
+API-defined and reviewed, not universal mechanism ground truth. Current API
+captures are not historical simulations. API labels/risk fields remain separate
+from model inputs. Entity, selected-pool and evidence-group isolation govern the
+token split. The following original view continues to govern address tasks.
 
 The implemented reconstructable graph view `scam-egonet-1.0` uses one graph per
 target and cutoff, with a default trailing 30-day interval `(cutoff-30d,

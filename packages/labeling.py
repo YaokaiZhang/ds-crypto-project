@@ -13,8 +13,10 @@ from types import MappingProxyType
 from typing import Any, Callable, Iterable
 from xml.etree import ElementTree as ET
 
-from .transactions import address
+from .transactions import address, integer
 from .tasks import canonical_task
+from .token import TOKEN_TASKS
+from .io import read_records
 
 STATUSES = {"supported_positive", "supported_negative", "unlabeled", "disputed", "invalid", "temporally_unresolved"}
 ROLES = {"phishing": {"attacker", "phishing_receiver", "phishing_address", "scammer", "phishing_attacker", "benign_address"},
@@ -90,7 +92,7 @@ def _base(task: str, entity: Any, raw_label: Any, source: str, row: int, checksu
             "mapped_label": None, "label_status": "temporally_unresolved", "role": "unknown",
             "valid_from": None, "valid_to": None, "label_available_at": None,
             "incident_onset": None, "evidence_ref": None, "source_id": source,
-            "label_version": "task-b-labels-0.1", "audit_decision": "pending_review",
+            "label_version": "scam-labels-0.1", "audit_decision": "pending_review",
             "evidence_strength": "source_label", "source_row": row, "source_sha256": checksum}
 
 
@@ -173,6 +175,69 @@ def _map_audited(row: dict[str, Any], task: str, mapping: dict[str, str]) -> dic
     return changes
 
 
+def _pool_addresses(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        value = json.loads(value) if value else []
+    if not isinstance(value, list) or any(address(pool) is None for pool in value):
+        raise ValueError("label_requires_pool_address_list")
+    return sorted(set(address(pool) for pool in value))
+
+
+def _map_honeypot_snapshot(row: dict[str, Any], task: str, mapping: dict[str, str]) -> dict[str, Any]:
+    if task != "honeypot":
+        raise ValueError("honeypot_snapshot_requires_honeypot_task")
+    response, query = row.get("response", {}), row.get("request", {})
+    if not isinstance(response, dict) or not isinstance(query, dict):
+        raise ValueError("invalid_honeypot_snapshot_structure")
+    checksum = hashlib.sha256(json.dumps(response, sort_keys=True).encode()).hexdigest()
+    if row.get("response_sha256") != checksum:
+        raise ValueError("honeypot_snapshot_checksum_mismatch")
+    token = address(query.get("address"))
+    pool = address(query.get("pair"))
+    detected = _time(row.get("checked_at"))
+    if any(not isinstance(response.get(key, {}), dict) for key in ("token", "chain", "pair", "honeypotResult")):
+        raise ValueError("invalid_honeypot_snapshot_structure")
+    response_pool = response.get("pair", {}).get("pair", {})
+    if not isinstance(response_pool, dict):
+        raise ValueError("invalid_honeypot_pair_structure")
+    if (not token or not pool or detected is None or integer(query.get("chainID")) != 1
+            or address(response.get("token", {}).get("address")) != token
+            or integer(response.get("chain", {}).get("id")) != 1
+            or address(response_pool.get("address")) != pool
+            or response_pool.get("type") != "UniswapV2"):
+        return {"entity_id": token, "label_status": "invalid", "audit_decision": "snapshot_scope_unresolved"}
+    value = response.get("honeypotResult", {}).get("isHoneypot")
+    # A successful simulation supports either polarity. Other-source positive
+    # evidence can be reviewed, but failed simulations never create negatives.
+    usable = isinstance(value, bool) and (response.get("simulationSuccess") is True or value is True)
+    reviewed = row.get("audit_decision") in {"admitted", "approved", "accepted", "reviewed"}
+    return {"entity_id": token, "role": "token_contract", "mapped_label": int(value) if usable else None,
+            "source_label": str(value), "label_status": ("supported_positive" if value else "supported_negative")
+            if usable and reviewed else "temporally_unresolved" if usable else "unlabeled",
+            "audit_decision": row.get("audit_decision", "pending_review") if usable else "missing_or_ambiguous_detection",
+            "valid_from": detected, "valid_to": detected, "label_available_at": detected,
+            "pool_addresses": [pool], "evidence_ref": row.get("evidence_ref"),
+            "evidence_strength": "api_defined_sell_restriction",
+            "label_version": "honeypot-is-snapshot-1.0", "api_response_sha256": checksum}
+
+
+def _map_rug_incident(row: dict[str, Any], task: str, mapping: dict[str, str]) -> dict[str, Any]:
+    if task != "rug_pull":
+        raise ValueError("rug_incidents_requires_rug_pull_task")
+    changes = _map_audited(row, task, mapping)
+    changes.update(pool_addresses=_pool_addresses(row.get("pool_addresses")),
+                   chain_id=row.get("chain_id"), incident_tx=row.get("incident_tx"),
+                   controller_evidence_ref=row.get("controller_evidence_ref"),
+                   mechanism=row.get("mechanism"), label_version="rug-incidents-v2-1.0")
+    if str(row.get("chain_id")) != "1" or row.get("mechanism") != "malicious_liquidity_withdrawal_v2":
+        changes.update(label_status="invalid", audit_decision="outside_task_scope")
+    if changes["mapped_label"] == 1 and (not row.get("incident_tx") or not row.get("controller_evidence_ref") or not row.get("incident_onset")):
+        changes.update(label_status="temporally_unresolved", audit_decision="missing_incident_attribution")
+    return changes
+
+
 def _map_xblock_phishing(row: dict[str, Any], task: str, mapping: dict[str, str]) -> dict[str, Any]:
     if task != "phishing":
         raise ValueError("xblock_phishing_requires_phishing_task")
@@ -199,6 +264,8 @@ SOURCE_ADAPTERS = MappingProxyType({
     "crpwarner": SourceAdapter(_map_crpwarner, file_format="xlsx_or_csv"),
     "audited": SourceAdapter(_map_audited), "csv": SourceAdapter(_map_audited),
     "xblock_phishing": SourceAdapter(_map_xblock_phishing),
+    "honeypot_is": SourceAdapter(_map_honeypot_snapshot, file_format="jsonl"),
+    "rug_incidents": SourceAdapter(_map_rug_incident, file_format="jsonl_or_csv"),
 })
 
 
@@ -216,7 +283,9 @@ def import_labels(source: str, path: str | Path, task: str,
         raise ValueError("unsupported_label_source")
     adapter = SOURCE_ADAPTERS[source]
     checksum = hashlib.sha256(path.read_bytes()).hexdigest()
-    if adapter.file_format == "xlsx_or_csv" and path.suffix.lower() == ".xlsx":
+    if adapter.file_format == "jsonl" or adapter.file_format == "jsonl_or_csv" and path.suffix.lower() in {".jsonl", ".parquet"}:
+        rows = read_records(path)
+    elif adapter.file_format == "xlsx_or_csv" and path.suffix.lower() == ".xlsx":
         rows = _xlsx_rows(path)
     elif adapter.file_format == "headerless_csv":
         rows = [{"address": row[0], "name": row[1] if len(row) > 1 else ""}
@@ -233,9 +302,14 @@ def import_labels(source: str, path: str | Path, task: str,
         record["raw_record"] = row
         record["evidence_ref"] = lower.get("evidence_ref") or lower.get("source") or f"{path.resolve()}#row={number}"
         record.update(adapter.mapper(lower, task, token_mapping))
+        record["evidence_ref"] = record.get("evidence_ref") or f"{path.resolve()}#row={number}"
         try:
             for key in ("valid_from", "valid_to", "label_available_at", "incident_onset"):
-                record[key] = _time(lower.get(key))
+                record[key] = _time(record.get(key) if source == "honeypot_is" else lower.get(key, record.get(key)))
+            if task in TOKEN_TASKS:
+                record["pool_addresses"] = _pool_addresses(record.get("pool_addresses", lower.get("pool_addresses")))
+                for key in ("incident_tx", "controller_evidence_ref", "mechanism"):
+                    record[key] = record.get(key, lower.get(key))
         except ValueError:
             record.update(label_status="invalid", audit_decision="invalid_evidence_timestamp")
         if record["entity_id"] is None:
@@ -276,15 +350,24 @@ def reconcile_labels(records: Iterable[dict[str, Any]], targets: Iterable[dict[s
                 entry[key] = target[key]
         entry.update(label_version=None, label_available_at=None, valid_from=None,
                      valid_to=None, incident_onset=None, audit_decision="not_admitted", source_checksums={})
+        if task in TOKEN_TASKS:
+            entry["pool_addresses"] = sorted(address(pool) for pool in target.get("pools", []) if address(pool))
         candidates = by_entity.get((task, entity or ""), [])
-        values = {record.get("mapped_label") for record in candidates
+        conflict_candidates = candidates
+        if task in TOKEN_TASKS:
+            conflict_candidates = [record for record in candidates
+                                   if record.get("pool_addresses") == entry["pool_addresses"]
+                                   and _time(record.get("valid_from")) is not None
+                                   and _time(record.get("valid_to")) is not None and cutoff is not None
+                                   and _time(record["valid_from"]) <= cutoff <= _time(record["valid_to"])]
+        values = {record.get("mapped_label") for record in conflict_candidates
                   if record.get("mapped_label") in (0, 1) and record.get("label_status") != "invalid"}
         entry["evidence_refs"] = sorted({str(record.get("evidence_ref")) for record in candidates if record.get("evidence_ref")})
         entry["source_ids"] = sorted({str(record.get("source_id")) for record in candidates if record.get("source_id")})
         entry["source_checksums"] = {str(record.get("source_id")): record.get("source_sha256") for record in candidates if record.get("source_id")}
         if not data_eligible:
             entry["reason"] = "data_incomplete_or_invalid_target"
-        elif len(values) > 1 or any(record.get("label_status") == "disputed" for record in candidates):
+        elif len(values) > 1 or any(record.get("label_status") == "disputed" for record in conflict_candidates):
             entry.update(label_status="disputed", reason="source_label_conflict")
         else:
             admitted = []
@@ -302,10 +385,25 @@ def reconcile_labels(records: Iterable[dict[str, Any]], targets: Iterable[dict[s
                 if record.get("role") not in ROLES.get(task, set()):
                     rejection = "unknown_or_inapplicable_role"
                     continue
+                if task in TOKEN_TASKS and (not record.get("pool_addresses")
+                        or sorted(record["pool_addresses"]) != entry["pool_addresses"]):
+                    rejection = "label_pool_scope_mismatch"
+                    continue
+                if task == "rug_pull" and record.get("mapped_label") == 1:
+                    onset = _time(record.get("incident_onset"))
+                    tx = str(record.get("incident_tx") or "")
+                    valid_tx = len(tx) == 66 and tx.startswith("0x") and all(char in "0123456789abcdefABCDEF" for char in tx[2:])
+                    if (onset is None or onset > cutoff or not valid_tx
+                            or not record.get("controller_evidence_ref")):
+                        rejection = "missing_or_future_rug_incident_evidence"
+                        continue
                 if task == "phishing" and status == "supported_positive" and record.get("role") == "benign_address":
                     rejection = "role_incompatible_with_positive_label"
                     continue
                 valid_from, valid_to = _time(record.get("valid_from")), _time(record.get("valid_to"))
+                if task in TOKEN_TASKS and valid_to is None:
+                    rejection = "token_label_requires_bounded_valid_period"
+                    continue
                 if valid_from is None or cutoff < valid_from or valid_to is not None and cutoff > valid_to:
                     rejection = "unknown_or_inapplicable_valid_period"
                     continue

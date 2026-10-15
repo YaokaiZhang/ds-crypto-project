@@ -1,8 +1,8 @@
 # Task B codebase extension and Vue/FastAPI serving plan
 
-Design date: 2026-10-08; implementation update: 2026-10-09. Task B data pipelines
-and Phishing/Ponzi offline training code are implemented. Honeypot/Rug Pull
-provide data and initial graphs. Only synthetic engineering checks have run;
+Design date: 2026-10-08; implementation update: 2026-10-15. Task B data pipelines
+and offline training code are implemented for all four tasks. Honeypot/Rug Pull
+use the versioned [token training pipeline](TOKEN_SCAM_TRAINING_PIPELINE.md). Only synthetic engineering checks have run;
 no real training dataset, formal training or online service is delivered.
 
 The earlier layout migration created deployment responsibility guides and moved

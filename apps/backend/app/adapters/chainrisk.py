@@ -10,7 +10,7 @@ class ModelRegistry:
         self.settings = settings
 
     def load(self) -> None:
-        """Load admitted bundles once, using chainrisk.bundle.load_model_bundle."""
+        """Load admitted bundles once, using packages.bundle.load_model_bundle."""
         raise FeatureNotImplemented('models.load')
 
     def bundle_for(self, task: TaskId) -> Any:
@@ -21,7 +21,7 @@ class ModelRegistry:
 
 class ChainriskGraphBuilder:
     def build(self, context: AssessmentContext, history: CollectedHistory) -> GraphSample:
-        """Use chainrisk.graph.build_graph_sample with the frozen model recipe."""
+        """Use packages.graph.build_graph_sample with the frozen model recipe."""
         raise FeatureNotImplemented('graph.build')
 
 class ChainriskPredictor:

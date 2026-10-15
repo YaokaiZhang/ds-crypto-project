@@ -21,6 +21,8 @@ from typing import Any, Iterable
 import torch
 from torch import Tensor, nn
 
+from packages.progress import add_progress_arguments, progress_bar
+
 
 LABEL_TO_INT = {"low_volume_dead": 0, "continued_activity": 1}
 
@@ -188,6 +190,8 @@ def score_rows(
     std: Tensor,
     device: torch.device | None = None,
     batch_size: int = 1,
+    *, progress: str = "auto", description: str = "Scoring", position: int = 0,
+    leave: bool = True,
 ) -> tuple[list[int], list[float]]:
     if batch_size <= 0:
         raise ValueError("batch_size must be positive")
@@ -195,8 +199,9 @@ def score_rows(
     target_device = device or next(model.parameters()).device
     labels: list[int] = []
     scores: list[float] = []
-    with torch.no_grad():
-        for start in range(0, len(rows), batch_size):
+    with torch.no_grad(), progress_bar(range(0, len(rows), batch_size), mode=progress,
+            desc=description, unit="batch", position=position, leave=leave) as batches:
+        for start in batches:
             x, edge, centers, batch_labels = batch_graph_tensors(
                 rows[start:start + batch_size], mean, std, target_device
             )
@@ -265,8 +270,10 @@ def evaluate(
     threshold: float = 0.5,
     device: torch.device | None = None,
     batch_size: int = 1,
+    *, progress: str = "auto", position: int = 0, leave: bool = True,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    labels, scores = score_rows(model, rows, mean, std, device, batch_size)
+    labels, scores = score_rows(model, rows, mean, std, device, batch_size,
+                               progress=progress, description=f"Evaluate {split}", position=position, leave=leave)
     predictions: list[dict[str, Any]] = []
     for row, label, score in zip(rows, labels, scores):
         predicted = int(score >= threshold)
@@ -320,6 +327,7 @@ def resolve_device(requested: str) -> torch.device:
 def train(args: argparse.Namespace) -> dict[str, Any]:
     if args.batch_size <= 0:
         raise ValueError("batch_size must be positive")
+    progress = getattr(args, "progress", "auto")
     device = resolve_device(args.device)
     set_seed(args.seed)
     torch.set_num_threads(args.threads)
@@ -352,65 +360,71 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     best_auc = -math.inf
     stale_epochs = 0
     history: list[dict[str, Any]] = []
-    for epoch in range(1, args.epochs + 1):
-        model.train()
-        order = list(range(len(train_rows)))
-        random.shuffle(order)
-        total_loss = 0.0
-        for start in range(0, len(order), args.batch_size):
-            batch_rows = [train_rows[index] for index in order[start:start + args.batch_size]]
-            x, edge, centers, labels = batch_graph_tensors(batch_rows, mean, std, device)
-            optimizer.zero_grad(set_to_none=True)
-            logits = model(x, edge, centers)
-            loss = criterion(
-                logits,
-                torch.tensor(labels, dtype=torch.float32, device=device),
+    with progress_bar(mode=progress, total=args.epochs, desc="GraphSAGE epochs", unit="epoch") as epochs:
+        for epoch in range(1, args.epochs + 1):
+            model.train()
+            order = list(range(len(train_rows)))
+            random.shuffle(order)
+            total_loss, seen = 0.0, 0
+            with progress_bar(range(0, len(order), args.batch_size), mode=progress,
+                              desc=f"Train {epoch}/{args.epochs}", unit="batch", position=1, leave=False) as batches:
+                for start in batches:
+                    batch_rows = [train_rows[index] for index in order[start:start + args.batch_size]]
+                    x, edge, centers, labels = batch_graph_tensors(batch_rows, mean, std, device)
+                    optimizer.zero_grad(set_to_none=True)
+                    logits = model(x, edge, centers)
+                    loss = criterion(
+                        logits,
+                        torch.tensor(labels, dtype=torch.float32, device=device),
+                    )
+                    loss.backward()
+                    optimizer.step()
+                    loss_value = float(loss.item())
+                    total_loss += loss_value * len(batch_rows)
+                    seen += len(batch_rows)
+                    batches.set_postfix(loss=loss_value, mean_loss=total_loss / seen, refresh=False)
+            validation, _ = evaluate(
+                model, validation_rows, mean, std, "validation", device=device,
+                batch_size=args.batch_size, progress=progress, position=1, leave=False,
             )
-            loss.backward()
-            optimizer.step()
-            total_loss += float(loss.item()) * len(batch_rows)
-        validation, _ = evaluate(
-            model,
-            validation_rows,
-            mean,
-            std,
-            "validation",
-            device=device,
-            batch_size=args.batch_size,
-        )
-        row = {
-            "epoch": epoch,
-            "train_loss": total_loss / len(train_rows),
-            "validation_roc_auc": validation["roc_auc"],
-            "validation_average_precision": validation["average_precision"],
-            "validation_balanced_accuracy": validation["balanced_accuracy"],
-        }
-        history.append(row)
-        score = validation["roc_auc"] if validation["roc_auc"] is not None else -math.inf
-        if score > best_auc + args.min_delta:
-            best_auc = score
-            best_epoch = epoch
-            best_state = copy.deepcopy(model.state_dict())
-            stale_epochs = 0
-        else:
-            stale_epochs += 1
-        if stale_epochs >= args.patience:
-            break
+            row = {
+                "epoch": epoch,
+                "train_loss": total_loss / len(train_rows),
+                "validation_roc_auc": validation["roc_auc"],
+                "validation_average_precision": validation["average_precision"],
+                "validation_balanced_accuracy": validation["balanced_accuracy"],
+            }
+            history.append(row)
+            score = validation["roc_auc"] if validation["roc_auc"] is not None else -math.inf
+            if score > best_auc + args.min_delta:
+                best_auc = score
+                best_epoch = epoch
+                best_state = copy.deepcopy(model.state_dict())
+                stale_epochs = 0
+            else:
+                stale_epochs += 1
+            epochs.set_postfix(train_loss=row["train_loss"], val_AUC=score, best_AUC=best_auc,
+                               patience=f"{stale_epochs}/{args.patience}", refresh=False)
+            epochs.update(1)
+            if stale_epochs >= args.patience:
+                epochs.set_description("GraphSAGE early stop")
+                break
     if best_state is None:
         raise RuntimeError("no validation checkpoint was selected")
     model.load_state_dict(best_state)
     validation_labels, validation_scores = score_rows(
-        model, validation_rows, mean, std, device, args.batch_size
+        model, validation_rows, mean, std, device, args.batch_size,
+        progress=progress, description="Threshold validation",
     )
     decision_threshold = select_threshold(validation_labels, validation_scores)
     train_metrics, train_predictions = evaluate(
-        model, train_rows, mean, std, "train", decision_threshold, device, args.batch_size
+        model, train_rows, mean, std, "train", decision_threshold, device, args.batch_size, progress=progress
     )
     validation_metrics, validation_predictions = evaluate(
-        model, validation_rows, mean, std, "validation", decision_threshold, device, args.batch_size
+        model, validation_rows, mean, std, "validation", decision_threshold, device, args.batch_size, progress=progress
     )
     test_metrics, test_predictions = evaluate(
-        model, test_rows, mean, std, "test_holdout", decision_threshold, device, args.batch_size
+        model, test_rows, mean, std, "test_holdout", decision_threshold, device, args.batch_size, progress=progress
     )
 
     model_state = {key: value.detach().cpu() for key, value in model.state_dict().items()}
@@ -503,6 +517,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--threads", type=int, default=4)
     result.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     result.add_argument("--batch-size", type=int, default=512)
+    add_progress_arguments(result)
     return result
 
 

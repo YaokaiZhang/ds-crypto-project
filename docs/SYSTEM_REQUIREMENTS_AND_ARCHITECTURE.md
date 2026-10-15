@@ -1,8 +1,9 @@
 # Ethereum behavior and risk analysis: requirements, feasibility and architecture
 
 Version: system-scope-0.2; adopted: 2026-10-05. English/status update: 2026-10-09.
-This is the adopted system design. Task B offline data/graph and Phishing/Ponzi
-training code now exist; Honeypot/v2 Rug are data-only. Online services and joint
+This is the adopted system design. Task B offline data/graph and training code
+now exist for all four tasks after the 2026-10-15
+[token pipeline revision](TOKEN_SCAM_TRAINING_PIPELINE.md). Real analysis services and joint
 training remain unimplemented. Historical report metrics are documentary
 evidence, not newly reproduced experiments.
 
@@ -360,7 +361,8 @@ required inference label. An illustrative result, not a measured assessment:
 
 `ready` means a result exists, not that the entity is safe. Distinguish
 `pending`, insufficient history, incomplete/stale data, out-of-domain and
-unavailable models. This release returns `data_only` for Honeypot/Rug training.
+unavailable models. Honeypot/Rug offline training is enabled; real weights and
+backend analysis integration remain deferred.
 Unknown or immature training truth does not block inference from otherwise
 eligible features.
 

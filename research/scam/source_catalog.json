@@ -1,0 +1,201 @@
+{
+  "catalog_version": "scam-sources-1.1",
+  "reviewed_date": "2026-10-15",
+  "scope": "Local file adapters and future explicit collection; no training dataset downloaded in this release",
+  "chain_id": 1,
+  "admission": [
+    "Freeze original source/version, file checksum, retrieval date and terms",
+    "Review entity role, task definition, historical validity and label availability",
+    "Quarantine conflicts, errors and unresolved mappings",
+    "Keep source negatives task-specific and unlabeled background separate",
+    "Verify pool/factory/controller mappings independently; event signatures alone are insufficient"
+  ],
+  "sources": [
+    {
+      "adapter": "forta",
+      "tasks": [
+        "phishing"
+      ],
+      "url": "https://github.com/forta-network/labelled-datasets",
+      "file": "labels/1/phishing_scams.csv",
+      "format": "csv",
+      "columns": [
+        "address",
+        "is_contract",
+        "etherscan_tag",
+        "etherscan_labels"
+      ],
+      "mapping": "phish source string is candidate positive; attacker role and time remain unresolved",
+      "terms": "Verify source terms for each frozen snapshot"
+    },
+    {
+      "adapter": "xblock_ponzi",
+      "tasks": [
+        "ponzi"
+      ],
+      "url": "https://www.kaggle.com/datasets/xblock/smart-ponzi-scheme-labels",
+      "metadata_url": "https://xblock.pro/api/info/dataset?id=22",
+      "format": "csv_or_zip",
+      "file": "Smart Ponzi Scheme Labels/Ponzi_label.csv",
+      "columns": [
+        "Contract",
+        "Ponzi"
+      ],
+      "mapping": "1/0 retain source Ponzi/non-Ponzi definition; error is invalid; neither polarity is admitted without time/evidence review",
+      "terms": "Unknown in prior source audit; check before redistribution"
+    },
+    {
+      "adapter": "unica",
+      "tasks": [
+        "ponzi"
+      ],
+      "url": "https://github.com/blockchain-unica/ethereum-ponzi",
+      "file": "ponzi-addresses.csv",
+      "format": "headerless_csv",
+      "columns": [
+        "address",
+        "name"
+      ],
+      "mapping": "Candidate positive only; no negatives or bundled transaction histories; deduplicate and reconcile cross-source conflicts",
+      "terms": "Repository GPL-3.0; verify applicability to snapshot and intended use"
+    },
+    {
+      "adapter": "tokenscout",
+      "tasks": [
+        "honeypot",
+        "rug_pull",
+        "ponzi"
+      ],
+      "url": "https://wu-yueming.github.io/Files/CCS2024_TokenScout.pdf",
+      "data_url": "https://drive.google.com/drive/folders/1smr3FJHqvaczzhRUMa1pl9sIKgn3PT3S",
+      "file": "token_labels_processed.csv",
+      "format": "csv_with_json_mapping",
+      "columns": [
+        "tokens",
+        "t1-labels",
+        "t2-labels"
+      ],
+      "mapping_file": "token-dict.json: integer ID to address or address to integer ID",
+      "mapping": "Task-matching subtype is weak candidate evidence; truthworthy is not automatically a reliable negative; source definition must be reviewed",
+      "limitations": "Processed transfer values/time are not assumed raw token units/Unix time; TokenScout Ponzi token role is not automatically an admitted Ponzi contract label",
+      "terms": "Not established by public data listing; verify author terms"
+    },
+    {
+      "adapter": "crpwarner",
+      "tasks": [
+        "honeypot",
+        "rug_pull"
+      ],
+      "url": "https://github.com/CRPWarner/RugPull",
+      "format": "xlsx_or_csv",
+      "columns": [
+        "Pattern",
+        "Address"
+      ],
+      "mapping": "Withdrawing Liquidity / Limiting Sell Order are event candidates, requiring independent mechanism, incident, pool and controller review",
+      "terms": "Verify repository and dataset terms for frozen files"
+    },
+    {
+      "adapter": "xblock_phishing",
+      "tasks": [
+        "phishing"
+      ],
+      "url": "https://xblock.pro/api/info/dataset?id=13",
+      "format": "local_csv_export",
+      "columns": [
+        "address",
+        "isp"
+      ],
+      "mapping": "1 is candidate positive; 0 stays unlabeled. No pickle execution or silent static-graph conversion",
+      "terms": "Unknown in prior audit"
+    },
+    {
+      "adapter": "audited",
+      "aliases": [
+        "csv"
+      ],
+      "tasks": [
+        "phishing",
+        "ponzi",
+        "honeypot",
+        "rug_pull"
+      ],
+      "url": null,
+      "format": "csv",
+      "columns": [
+        "task_id",
+        "entity_id",
+        "mapped_label",
+        "label_status",
+        "role",
+        "audit_decision",
+        "valid_from",
+        "valid_to",
+        "label_available_at",
+        "evidence_ref"
+      ],
+      "mapping": "Explicit reviewed decision, compatible task role, polarity and historical validity are required",
+      "terms": "Provided by the reviewer with provenance"
+    },
+    {
+      "adapter": "honeypot_is",
+      "tasks": [
+        "honeypot"
+      ],
+      "url": "https://docs.honeypot.is/ishoneypot",
+      "format": "jsonl_capture_envelope",
+      "columns": [
+        "request",
+        "response",
+        "response_sha256",
+        "checked_at",
+        "audit_decision"
+      ],
+      "mapping": "Reviewed boolean isHoneypot at capture time and exact pair; unknowns and failed negative simulations remain unlabeled; raw API labels never become graph features",
+      "terms": "Review provider terms for each capture"
+    },
+    {
+      "adapter": "rug_incidents",
+      "tasks": [
+        "rug_pull"
+      ],
+      "url": null,
+      "format": "reviewed_jsonl_or_csv",
+      "columns": [
+        "entity_id",
+        "chain_id",
+        "pool_addresses",
+        "mechanism",
+        "mapped_label",
+        "label_status",
+        "audit_decision",
+        "valid_from",
+        "valid_to",
+        "label_available_at",
+        "incident_onset",
+        "incident_tx",
+        "controller_evidence_ref",
+        "evidence_ref"
+      ],
+      "mapping": "Reviewed malicious v2 liquidity withdrawal with incident attribution; bounded task-specific negatives; token/pool/time admission required",
+      "terms": "Reviewer-supplied provenance and source terms"
+    }
+  ],
+  "collector": {
+    "name": "etherscan_v2",
+    "url": "https://docs.etherscan.io/changelog",
+    "event_log_url": "https://docs.etherscan.io/api-reference/endpoint/getlogs",
+    "default_actions": [
+      "txlist",
+      "txlistinternal"
+    ],
+    "optional_actions": [
+      "tokentx",
+      "getLogs",
+      "eth_getTransactionReceipt",
+      "eth_getBlockByNumber"
+    ],
+    "maximum_page_size": 1000,
+    "network_opt_in": "--allow-network and ETHERSCAN_API_KEY"
+  }
+}

@@ -31,6 +31,17 @@ reports and keep online assessments distinct from offline benchmarks.
 
 ### System-wide rules
 
+Token offline pipeline revision requested on 2026-10-15: implement the complete
+Honeypot and Rug Pull training lifecycle, while deferring real training execution
+and backend analysis integration. Both tasks become trainable with independent
+GraphSAGE weights. `token-v2-scoped-2.0` adds mechanism features and an explicitly
+verified token/selected-pool emitter coverage policy; Ponzi/Phishing inputs remain
+unchanged. Honeypot captures/imports reviewed API-defined pair-specific labels;
+Rug Pull uses reviewed v2 incident/negative observations. Labels never become
+model features, and neither task gains a future-event forecast claim. This is a
+task-stage and token-input contract revision. See
+[TOKEN_SCAM_TRAINING_PIPELINE.md](docs/TOKEN_SCAM_TRAINING_PIPELINE.md).
+
 Forecast application revision requested on 2026-10-13: replace the placeholder
 and discarded frontend-only implementation with the canonical analysis job/result
 workflow. Forecast uses the backend frozen fixture adapter, shared workbench,
@@ -105,9 +116,10 @@ entrypoints and artifacts until checkpoint/input compatibility is verified.
 The website templates are now implemented as recorded in
 [TEMPLATE_DEVELOPMENT.md](apps/docs/TEMPLATE_DEVELOPMENT.md); collection, durable
 jobs, model serving remains unimplemented; the homepage feed is implemented separately as recorded above. The 2026-10-08 scope revision admits a fourth Task B
-mechanism: Ethereum Uniswap v2 malicious liquidity withdrawal. Honeypot and
-rug-pull are data-only branches in this release; their training and historical
-execution simulation remain future work.
+mechanism: Ethereum Uniswap v2 malicious liquidity withdrawal. The 2026-10-15 offline revision makes Honeypot and rug-pull trainable with
+versioned selected-pool inputs. Historical execution simulation remains future
+work; real data collection, formal fitting and backend analysis integration are
+explicitly deferred.
 
 Task B uses `packages/chainrisk/`, `research/task_b/`, and `checks/`.
 TaskSpec, source adapters, graph strategies, backbone and loss registries share

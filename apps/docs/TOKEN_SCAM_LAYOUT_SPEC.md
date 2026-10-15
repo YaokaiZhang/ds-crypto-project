@@ -27,9 +27,11 @@ Ethereum Uniswap v2 malicious liquidity withdrawal for Rug Pull. No self-built
 historical sell simulation, universal rug coverage or pre-incident prediction
 is required for this initial scope.
 
-Both tasks remain `data_only` in the current registry/configurations. Data and
-initial graphs exist; token-specific coverage, label adapters/admission, training,
-approved weights and services must be completed before real scores are enabled.
+The 2026-10-15 offline revision makes both tasks trainable; see the
+[token training pipeline](../../docs/TOKEN_SCAM_TRAINING_PIPELINE.md). Token-specific
+coverage, label adapters and training code now exist. Real cohort admission,
+fitted/approved weights and backend services remain to be completed before real
+scores are enabled.
 The UI can display collected facts and explicit unavailable states before then.
 
 ## 2. Complete corresponding element list

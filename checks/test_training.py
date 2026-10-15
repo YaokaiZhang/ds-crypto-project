@@ -8,9 +8,9 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from chainrisk.graph import build_graph_sample
-from research.task_b.splitting import assert_partition_isolation, experiment_record, split_records
-from research.task_b.training import binary_loss, evaluate_bundle, export_run, metrics, select_threshold, tabular_features, train, validate_config
+from packages.graph import build_graph_sample
+from research.scam.splitting import assert_partition_isolation, experiment_record, split_records
+from research.scam.training import binary_loss, evaluate_bundle, export_run, metrics, select_threshold, tabular_features, train, validate_config
 
 
 HAS_TORCH = importlib.util.find_spec("torch") is not None
@@ -114,7 +114,7 @@ class SplitTests(unittest.TestCase):
 
 class ConfigurationAndMergeTests(unittest.TestCase):
     def test_checked_in_configs_validate(self):
-        directory = Path(__file__).resolve().parents[1] / "research/task_b/configs"
+        directory = Path(__file__).resolve().parents[1] / "research/scam/configs"
         for task in ("phishing", "ponzi", "honeypot", "rug_pull"):
             config = json.loads((directory / f"{task}.json").read_text())
             self.assertEqual(validate_config(config)["task_id"], task)
@@ -124,10 +124,10 @@ class ConfigurationAndMergeTests(unittest.TestCase):
         with self.assertRaisesRegex(NotImplementedError, "not implemented"):
             validate_config(config)
 
-    def test_data_only_branches_do_not_enter_training(self):
+    def test_token_branches_require_real_training_inputs(self):
         for task in ("honeypot", "rug_pull"):
-            result = train([], [], [], {"task_id": task}, "/unused")
-            self.assertEqual(result["status"], "data_only")
+            with self.assertRaisesRegex(ValueError, "both observed classes"):
+                train([], [], [], {"task_id": task}, "/unused", dry_run=True)
 
     def test_dry_run_and_quality_gate_without_fitting(self):
         rows = supervision_records()
@@ -186,9 +186,9 @@ class NumericalTests(unittest.TestCase):
 
     def test_single_batch_each_backbone_and_export(self):
         import torch
-        from chainrisk.graph import RELATION_NAMES, batch_graph_samples, fit_scaler
-        from chainrisk.models import create_model
-        from chainrisk.bundle import export_model_bundle, predict_bundle
+        from packages.graph import RELATION_NAMES, batch_graph_samples, fit_scaler
+        from packages.models import create_model
+        from packages.bundle import export_model_bundle, predict_bundle
         rows = supervision_records()
         graphs = [synthetic_graph(rows[0]), synthetic_graph(rows[-1])]
         scaler = fit_scaler(graphs)

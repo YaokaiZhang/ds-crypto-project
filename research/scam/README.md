@@ -2,8 +2,10 @@
 
 This release implements code, versioned configurations and synthetic engineering
 checks. It has not collected real training data, fitted a research model, or
-released weights/performance results. Phishing and Ponzi have training pipelines;
-Honeypot and Uniswap v2 liquidity rug pull are **data-only**.
+released weights/performance results. All four tasks have complete offline training pipelines. Honeypot and Uniswap
+v2 liquidity rug pull use verified selected pools and `token-v2-scoped-2.0`.
+See the [token training guide](../../docs/TOKEN_SCAM_TRAINING_PIPELINE.md) for
+metadata verification, API/incident labels and the full command sequence.
 
 ## Environment and checks
 
@@ -36,10 +38,9 @@ uv run --frozen chainrisk-task-b split --task phishing --supervision data/task_b
 uv run --frozen chainrisk-task-b train --task phishing --graphs data/task_b/synthetic/phishing-graphs.jsonl --supervision data/task_b/synthetic/phishing-supervision.jsonl --splits data/task_b/synthetic/phishing-splits.jsonl --dry-run
 uv run --frozen chainrisk-task-b predict --task phishing --graphs data/task_b/synthetic/phishing-graphs.jsonl --output data/task_b/synthetic/unavailable-predictions.jsonl
 uv run --frozen chainrisk-task-b resolve-transaction --input checks/fixtures/task_b/transaction.json
-uv run --frozen chainrisk-task-b train --task honeypot
 ```
 
-The last training command returns `data_only`. Prediction without a bundle returns
+Prediction without a bundle returns
 `model_unavailable` and null scores; it never fabricates demo output. Transaction
 resolution returns related entities and candidate tasks, not a transaction score.
 All commands support `--dry-run` without output writes or network requests.
@@ -48,7 +49,8 @@ All commands support `--dry-run` without output writes or network requests.
 
 A targets JSONL record requires `sample_id`, `task_id`, Ethereum `target`, integer
 Unix `cutoff`, and `chain_id=1`. Token tasks additionally require verified v2 pool
-addresses in `pools`. Choose a historical cutoff applicable to the source label;
+addresses in `pools` and cutoff-bound `pool_metadata`/`token_metadata`, produced
+by `verify-token-targets` or an equivalent reviewed snapshot. Choose a historical cutoff applicable to the source label;
 old incident lists do not establish a valid present-day positive sample.
 
 ```bash
@@ -64,8 +66,9 @@ The default graph is 30 days, 2 hops, fanouts 32/16, 512 nodes, 4096 aggregate
 edges. Root and selected first-hop histories are collected; boundary-node
 statistics describe the sampled observed subgraph. Request gaps fail coverage;
 intentional graph-budget sampling is separately recorded. Token collection covers
-the target and explicit pools, with limitations recorded; it is not a trained
-Honeypot/Rug detector or a historical fork simulator.
+the target and verified selected pools with explicit emitter coverage. Its graphs
+can train independent Honeypot/Rug models; the collector is not itself a detector
+or a historical fork simulator.
 
 Token collection also includes external/internal ETH histories for the token
 and selected pools to preserve outgoing funds. Optional target `factories`
@@ -145,7 +148,7 @@ checks used CPU; MPS performance and research model quality are unvalidated.
 model strategies. CLI handlers orchestrate I/O and call these components; they
 do not define fraud truth or duplicate model implementations. Add a mechanism
 by registering its task specification, audited source mapping, graph policy and
-configuration. Data-only tasks cannot be enabled by merely changing a CLI flag.
+configuration. Task admission requires versioned inputs and supervised evidence, not merely a CLI flag.
 
 The implementation guide is
 [`TASK_B_IMPLEMENTATION.md`](../../docs/TASK_B_IMPLEMENTATION.md).

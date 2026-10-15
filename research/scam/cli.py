@@ -10,8 +10,10 @@ import shutil
 import sys
 from types import MappingProxyType
 
-from chainrisk.io import load_json, read_records, save_json, sha256_file, write_records
-from chainrisk.tasks import canonical_task, get_task
+from packages.io import load_json, read_records, save_json, sha256_file, write_records
+from packages.tasks import canonical_task, get_task
+from packages.collection import CollectionError
+from packages.progress import add_progress_arguments
 
 
 @dataclass(frozen=True)
@@ -44,7 +46,7 @@ def _write(ctx, path, rows):
 
 
 def _import_labels(ctx):
-    from chainrisk.labeling import import_labels
+    from packages.labeling import import_labels
     a = ctx.args
     _require(a, "input", "source")
     rows = import_labels(a.source, a.input, ctx.task_id, mapping_path=a.mapping)
@@ -56,7 +58,7 @@ def _import_labels(ctx):
 
 
 def _collect(ctx):
-    from chainrisk.collection import collect_dataset
+    from packages.collection import collect_dataset
     a = ctx.args
     _require(a, "targets")
     if not a.dry_run:
@@ -68,12 +70,44 @@ def _collect(ctx):
     if a.allow_network:
         settings["allow_network"] = True
     # No key is supplied as a CLI argument or saved into experiment settings.
-    return collect_dataset(_task_rows(a.targets, ctx.task_id), a.output or "data/task_b/unused-dry-run",
+    return collect_dataset(_task_rows(a.targets, ctx.task_id), a.output or "data/scam/unused-dry-run",
                            settings, dry_run=a.dry_run)
 
 
+def _verify_targets(ctx):
+    from packages.token_sources import verify_token_targets
+    a = ctx.args
+    _require(a, "targets")
+    if not a.dry_run:
+        _require(a, "output")
+    settings = load_json(a.settings) if a.settings else {}
+    settings["allow_network"] = a.allow_network
+    return verify_token_targets(_task_rows(a.targets, ctx.task_id), a.output or "unused-dry-run", settings, a.dry_run)
+
+
+def _capture_honeypot(ctx):
+    from packages.token_sources import collect_honeypot_evidence
+    a = ctx.args
+    _require(a, "targets")
+    if not a.dry_run:
+        _require(a, "output")
+    settings = load_json(a.settings) if a.settings else {}
+    settings["allow_network"] = a.allow_network
+    return collect_honeypot_evidence(_task_rows(a.targets, ctx.task_id), a.output or "unused-dry-run", settings, a.dry_run)
+
+
+def _prepare(ctx):
+    from .preparation import prepare_dataset
+    a = ctx.args
+    _require(a, "events", "targets", "input")
+    if not a.dry_run:
+        _require(a, "output")
+    return prepare_dataset(a.events, a.targets, a.input, ctx.config, a.output,
+                           training_as_of=a.training_as_of, audit_path=a.audit, dry_run=a.dry_run)
+
+
 def _normalize(ctx):
-    from chainrisk.data import normalize_bundle
+    from packages.data import normalize_bundle
     a = ctx.args
     _require(a, "input")
     rows, audit = normalize_bundle(a.input)
@@ -84,7 +118,7 @@ def _normalize(ctx):
 
 
 def _label(ctx):
-    from chainrisk.labeling import reconcile_labels
+    from packages.labeling import reconcile_labels
     a = ctx.args
     _require(a, "input", "targets")
     rows = reconcile_labels(_task_rows(a.input, ctx.task_id), _task_rows(a.targets, ctx.task_id), a.training_as_of)
@@ -94,7 +128,7 @@ def _label(ctx):
 
 
 def _build_graphs(ctx):
-    from chainrisk.graph import build_graph_sample, validate_graph_sample
+    from packages.graph import build_graph_sample, validate_graph_sample
     a = ctx.args
     _require(a, "events", "targets")
     events = read_records(a.events)
@@ -152,11 +186,13 @@ def _train(ctx):
         config["epochs"] = a.epochs
     if a.training_as_of is not None:
         config["training_as_of"] = a.training_as_of
+    if a.progress is not None:
+        config["progress"] = a.progress
     config = validate_config(config)
     if not a.dry_run:
         _require(a, "output")
     return train(_task_rows(a.graphs, ctx.task_id), _task_rows(a.supervision, ctx.task_id),
-                 _task_rows(a.splits, ctx.task_id), config, a.output or "data/task_b/unused-dry-run", a.dry_run)
+                 _task_rows(a.splits, ctx.task_id), config, a.output or "data/scam/unused-dry-run", a.dry_run)
 
 
 def _evaluate(ctx):
@@ -172,11 +208,11 @@ def _evaluate(ctx):
     return evaluate_bundle(a.bundle, _task_rows(a.graphs, ctx.task_id),
                            _task_rows(a.supervision, ctx.task_id), _task_rows(a.splits, ctx.task_id),
                            partition=a.partition, out=None if a.dry_run else a.output,
-                           dry_run=a.dry_run, device=a.device)
+                           dry_run=a.dry_run, device=a.device, progress=a.progress)
 
 
 def _export(ctx):
-    from chainrisk.bundle import load_model_bundle
+    from packages.bundle import load_model_bundle
     a = ctx.args
     if not get_task(ctx.task_id).trainable:
         return {"status": "data_only", "task_id": ctx.task_id}
@@ -190,7 +226,7 @@ def _export(ctx):
 
 
 def _predict(ctx):
-    from chainrisk.graph import validate_graph_sample
+    from packages.graph import validate_graph_sample
     a = ctx.args
     _require(a, "graphs")
     graphs = _task_rows(a.graphs, ctx.task_id)
@@ -207,7 +243,7 @@ def _predict(ctx):
                  "model_version": None, "quality": g["quality"], "score_meaning": None,
                  "calibration_status": "unavailable", "result_origin": "unavailable"} for g in graphs]
     else:
-        from chainrisk.bundle import load_model_bundle, predict_bundle
+        from packages.bundle import load_model_bundle, predict_bundle
         from .training import resolve_device
         device = resolve_device(a.device or "cpu")
         bundle = load_model_bundle(a.bundle, device=device, expected_task=ctx.task_id)
@@ -217,7 +253,7 @@ def _predict(ctx):
 
 
 def _resolve(ctx):
-    from chainrisk.transactions import resolve_transaction
+    from packages.transactions import resolve_transaction
     a = ctx.args
     _require(a, "input")
     tx = load_json(a.input)
@@ -234,11 +270,12 @@ COMMANDS = MappingProxyType({
     "import-labels": _import_labels, "collect": _collect, "normalize": _normalize,
     "label": _label, "build-graphs": _build_graphs, "split": _split, "train": _train,
     "evaluate": _evaluate, "export": _export, "predict": _predict, "resolve-transaction": _resolve,
+    "verify-token-targets": _verify_targets, "capture-honeypot": _capture_honeypot, "prepare": _prepare,
 })
 
 
 def parser():
-    root = argparse.ArgumentParser(description="Task B offline data and GraphSAGE framework; no services")
+    root = argparse.ArgumentParser(description="Scam offline data and GraphSAGE framework; no services")
     subs = root.add_subparsers(dest="command", required=True)
     for name in COMMANDS:
         p = subs.add_parser(name)
@@ -246,25 +283,26 @@ def parser():
         p.add_argument("--config", help="JSON config; defaults to configs/<task>.json")
         p.add_argument("--output")
         p.add_argument("--dry-run", action="store_true", help="Validate/plan without writing outputs or calling the network")
-        if name in {"import-labels", "normalize", "label", "resolve-transaction"}:
+        if name in {"import-labels", "normalize", "label", "resolve-transaction", "prepare"}:
             p.add_argument("--input")
         if name == "import-labels":
             p.add_argument("--source")
             p.add_argument("--mapping")
-        if name in {"collect", "label", "build-graphs"}:
+        if name in {"collect", "label", "build-graphs", "verify-token-targets", "capture-honeypot", "prepare"}:
             p.add_argument("--targets")
-        if name == "collect":
+        if name in {"collect", "verify-token-targets", "capture-honeypot"}:
             p.add_argument("--settings")
             p.add_argument("--allow-network", action="store_true", help="Explicit opt-in; key is read from ETHERSCAN_API_KEY")
         if name == "normalize":
             p.add_argument("--audit")
-        if name == "build-graphs":
+        if name in {"build-graphs", "prepare"}:
             p.add_argument("--events")
-            p.add_argument("--coverage")
+            if name == "build-graphs":
+                p.add_argument("--coverage")
             p.add_argument("--audit", help="Normalization audit; otherwise checks the standard adjacent audit files")
         if name in {"split", "train", "evaluate"}:
             p.add_argument("--supervision")
-        if name in {"label", "split", "train", "evaluate"}:
+        if name in {"label", "split", "train", "evaluate", "prepare"}:
             p.add_argument("--training-as-of", type=int)
         if name == "split":
             p.add_argument("--experiment-mode", choices=["supervised_binary", "known_positive_vs_unlabeled"])
@@ -274,6 +312,7 @@ def parser():
             p.add_argument("--device", choices=["cpu", "mps", "cuda", "auto"])
         if name in {"train", "evaluate"}:
             p.add_argument("--splits")
+            add_progress_arguments(p, default=None)
         if name == "train":
             p.add_argument("--architecture", choices=["mean_sage", "directed_edge_sage"])
             p.add_argument("--loss", choices=["weighted_bce", "focal"])
@@ -305,6 +344,6 @@ def main(argv=None):
         result = COMMANDS[args.command](CommandContext(args, task, config))
         print(json.dumps(result, ensure_ascii=False, allow_nan=False, indent=2))
         return 0
-    except (ValueError, FileNotFoundError, FileExistsError, ImportError, KeyError, NotImplementedError) as exc:
+    except (ValueError, FileNotFoundError, FileExistsError, ImportError, KeyError, NotImplementedError, CollectionError) as exc:
         print(json.dumps({"status": "error", "command": args.command, "reason": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 2

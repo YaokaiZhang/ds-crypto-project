@@ -1,4 +1,4 @@
-"""Deterministic, entity/group-separated Task B research partitions.
+"""Deterministic, entity/group-separated Scam research partitions.
 
 P/U experiment targets are copies of frozen supervision; the canonical label
 status and eligibility are never rewritten into benign labels.
@@ -13,7 +13,8 @@ import math
 import random
 from typing import Any, Iterable, Sequence
 
-from chainrisk.tasks import canonical_task
+from packages.tasks import canonical_task
+from packages.token import TOKEN_TASKS
 
 PARTITIONS = ("train", "validation", "test")
 
@@ -85,6 +86,7 @@ def assert_partition_isolation(records: Iterable[dict[str, Any]]) -> None:
     seen_samples: set[str] = set()
     entity_partitions: dict[tuple[Any, str], set[str]] = defaultdict(set)
     group_partitions: dict[str, set[str]] = defaultdict(set)
+    pool_partitions: dict[str, set[str]] = defaultdict(set)
     for row in records:
         if not (row.get("experiment_eligible") or row.get("eligible")):
             continue
@@ -102,10 +104,15 @@ def assert_partition_isolation(records: Iterable[dict[str, Any]]) -> None:
         group = _verified_group(row)
         if group:
             group_partitions[group].add(partition)
+        if row.get("task_id") in TOKEN_TASKS:
+            for pool in row.get("pool_addresses", []):
+                pool_partitions[pool].add(partition)
     if any(len(parts) > 1 for parts in entity_partitions.values()):
         raise ValueError("target entity leakage across partitions")
     if any(len(parts) > 1 for parts in group_partitions.values()):
         raise ValueError("verified group leakage across partitions")
+    if any(len(parts) > 1 for parts in pool_partitions.values()):
+        raise ValueError("selected pool leakage across partitions")
 
 
 def split_records(
@@ -153,6 +160,7 @@ def split_records(
 
     entities: dict[tuple[Any, str], int] = {}
     groups: dict[str, int] = {}
+    pools: dict[str, int] = {}
     for index, row in enumerate(selected):
         entity = str(row.get("entity_id") or row.get("target") or "").lower()
         if not entity:
@@ -161,6 +169,11 @@ def split_records(
         if key in entities:
             join(index, entities[key])
         entities[key] = index
+        if row.get("task_id") in TOKEN_TASKS:
+            for pool in row.get("pool_addresses", []):
+                if pool in pools:
+                    join(index, pools[pool])
+                pools[pool] = index
         group = _verified_group(row)
         if group:
             if group in groups:
@@ -207,7 +220,7 @@ def split_records(
                 raise ValueError(f"training label unavailable at training_as_of: {row['sample_id']}")
     assert_partition_isolation(rows)
     manifest = {
-        "schema_version": "task-b-split-1", "task_id": next(iter(tasks)),
+        "schema_version": "scam-split-1", "task_id": next(iter(tasks)),
         "seed": seed, "mode": mode, "ratios": dict(zip(PARTITIONS, ratios)),
         "training_as_of": training_as_of, "background_cohort_id": next(iter(cohort_ids), None),
         "eligible_samples": len(selected), "excluded_samples": len(rows) - len(selected),

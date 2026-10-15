@@ -20,8 +20,8 @@ class TaskSpec:
 TASK_REGISTRY = MappingProxyType({
     "phishing": TaskSpec("phishing", "address", "trainable", "phishing_address", "address_flow"),
     "ponzi": TaskSpec("ponzi", "contract", "trainable", "ponzi_contract", "address_flow"),
-    "honeypot": TaskSpec("honeypot", "token", "data_only", "honeypot_sell_restriction", "token_v2"),
-    "rug_pull": TaskSpec("rug_pull", "token", "data_only", "rug_pull_liquidity_v2", "token_v2"),
+    "honeypot": TaskSpec("honeypot", "token", "trainable", "honeypot_sell_restriction", "token_v2"),
+    "rug_pull": TaskSpec("rug_pull", "token", "trainable", "rug_pull_liquidity_v2", "token_v2"),
 })
 TASKS = MappingProxyType({name: MappingProxyType({k: v for k, v in asdict(spec).items() if k != "task_id"}) for name, spec in TASK_REGISTRY.items()})
 ALIASES = {

@@ -1,0 +1,89 @@
+{
+  "matrix_version": "scam-experiments-1",
+  "execution_status": "configuration_only_not_run",
+  "base_configs": [
+    "phishing.json",
+    "ponzi.json",
+    "honeypot.json",
+    "rug_pull.json"
+  ],
+  "invariants": [
+    "identical eligible samples, cutoff, features and frozen entity/group split",
+    "independent task model/scaler/head/threshold",
+    "no test-dependent selection"
+  ],
+  "variants": [
+    {
+      "id": "mean_bce",
+      "model": {
+        "architecture_id": "mean_sage"
+      },
+      "loss": {
+        "name": "weighted_bce"
+      }
+    },
+    {
+      "id": "edge_bce",
+      "model": {
+        "architecture_id": "directed_edge_sage"
+      },
+      "loss": {
+        "name": "weighted_bce"
+      }
+    },
+    {
+      "id": "edge_focal",
+      "model": {
+        "architecture_id": "directed_edge_sage"
+      },
+      "loss": {
+        "name": "focal",
+        "gamma": 2.0
+      }
+    },
+    {
+      "id": "edge_depth3",
+      "model": {
+        "architecture_id": "directed_edge_sage",
+        "layers": 3
+      },
+      "loss": {
+        "name": "weighted_bce"
+      }
+    },
+    {
+      "id": "edge_no_direction",
+      "model": {
+        "architecture_id": "directed_edge_sage",
+        "ignore_direction": true
+      },
+      "loss": {
+        "name": "weighted_bce"
+      }
+    },
+    {
+      "id": "edge_no_relations",
+      "model": {
+        "architecture_id": "directed_edge_sage",
+        "ignore_relations": true
+      },
+      "loss": {
+        "name": "weighted_bce"
+      }
+    },
+    {
+      "id": "edge_no_edge_attr",
+      "model": {
+        "architecture_id": "directed_edge_sage",
+        "ignore_edge_attr": true
+      },
+      "loss": {
+        "name": "weighted_bce"
+      }
+    }
+  ],
+  "future_extensions": {
+    "nnpu": "disabled until explicit population class prior and positive/U sampling admission are audited",
+    "supervised_contrastive": "research proposal only; requires independent labels and a separate leakage/augmentation protocol"
+  }
+}

@@ -8,8 +8,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from chainrisk.io import read_records, write_records
-from research.task_b.cli import main
+from packages.io import read_records, write_records
+from research.scam.cli import main
 from checks.generate_fixtures import generate
 
 
@@ -22,9 +22,9 @@ class CLITests(unittest.TestCase):
         return json.loads(stdout.getvalue())
 
     def test_unlabeled_prediction_resolves_auto_device(self):
-        from chainrisk.bundle import export_model_bundle
-        from chainrisk.graph import RELATION_NAMES, build_graph_sample, fit_scaler
-        from chainrisk.models import create_model
+        from packages.bundle import export_model_bundle
+        from packages.graph import RELATION_NAMES, build_graph_sample, fit_scaler
+        from packages.models import create_model
         target = {"sample_id": "auto-device", "task_id": "ponzi", "target": "0x" + "1" * 40,
                   "cutoff": 100, "chain_id": 1, "coverage": {"complete": True}}
         event = {"event_id": "synthetic-auto", "chain_id": 1, "timestamp": 90,
@@ -76,7 +76,10 @@ class CLITests(unittest.TestCase):
             result = self.invoke("collect", "--task", "ponzi", "--targets", str(fixture / "targets.jsonl"), "--dry-run")
             self.assertTrue(result["dry_run"])
             for task in ("honeypot", "rug_pull"):
-                self.assertEqual(self.invoke("train", "--task", task)["status"], "data_only")
+                error = io.StringIO()
+                with redirect_stderr(error):
+                    self.assertEqual(main(["train", "--task", task, "--dry-run"]), 2)
+                self.assertIn("--graphs is required", error.getvalue())
                 graph_file = str(directory / f"{task}-graphs.jsonl")
                 result = self.invoke("build-graphs", "--task", task, "--events", events, "--targets", str(fixture / "targets.jsonl"), "--output", graph_file)
                 self.assertEqual(result["graphs"], 1)
@@ -92,7 +95,7 @@ class CLITests(unittest.TestCase):
     def test_command_task_config_mismatch_is_rejected(self):
         output = io.StringIO()
         with redirect_stderr(output):
-            code = main(["train", "--task", "ponzi", "--config", str(Path(__file__).parent.parent / "research/task_b/configs/phishing.json"), "--dry-run"])
+            code = main(["train", "--task", "ponzi", "--config", str(Path(__file__).parent.parent / "research/scam/configs/phishing.json"), "--dry-run"])
         self.assertEqual(code, 2)
         self.assertIn("does not match", output.getvalue())
 

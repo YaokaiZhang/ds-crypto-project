@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 
 from .data import SOURCE_KINDS, normalize_records
 from .transactions import address, decode_v2_log, integer
+from .token import TOKEN_TASKS, TOKEN_SCOPE_VERSION, token_scope
 
 
 class CollectionError(RuntimeError):
@@ -148,7 +149,7 @@ class EtherscanClient:
                         time.sleep(remaining)
                     self._last_request = time.monotonic()
                     url = self.endpoint + "?" + urlencode({**query, "apikey": self.key})
-                    request = Request(url, headers={"Accept": "application/json", "User-Agent": "chainrisk-task-b/0.1"})
+                    request = Request(url, headers={"Accept": "application/json", "User-Agent": "chainrisk-scam/0.1"})
                     with urlopen(request, timeout=self.timeout) as response:
                         payload = json.load(response)
                 self._validate_response(payload, action)
@@ -320,18 +321,26 @@ def collect_dataset(targets: Iterable[dict[str, Any]], out: str | Path,
         frontier_scopes = []
         sampled_nodes = {target["target"].lower()}
         neighborhood_complete = False
+        scope = None
+        start_block = None
         try:
+            if target.get("task_id") in TOKEN_TASKS:
+                scope = token_scope(target)
             start_block = integer(target.get("start_block"))
             end_block = integer(target.get("end_block"))
             if start_block is None:
                 start_block = client.block_by_time(start_time, "after")
             if end_block is None:
                 end_block = client.block_by_time(cutoff, "before")
+            if scope and end_block != scope["cutoff_block"]:
+                raise ValueError("collection_cutoff_block_differs_from_verified_scope")
             entities = [target["target"].lower()]
             actions = list(settings.get("actions", ["txlist", "txlistinternal"]))
             token_task = target.get("task_id") in ("honeypot", "rug_pull")
             if token_task:
                 actions = list(settings.get("token_actions", ["getLogs", "txlist", "txlistinternal"]))
+                if not {"getLogs", "txlist", "txlistinternal"}.issubset(actions):
+                    raise ValueError("token_collection_requires_logs_external_internal")
                 entities += [address(value) for value in target.get("pools", []) if address(value)]
                 entities += [address(value) for value in target.get("factories", []) if address(value)]
             from .graph import select_neighbor_addresses
@@ -414,6 +423,12 @@ def collect_dataset(targets: Iterable[dict[str, Any]], out: str | Path,
                     "hops": hops, "fanouts": list(fanouts[:hops]), "seed": seed,
                     "max_nodes": max_nodes, "sampled_node_count": len(sampled_nodes),
                     "boundary_node_statistic_scope": "sampled_observed_subgraph"}
+        if target.get("task_id") in TOKEN_TASKS:
+            coverage.update(scope_version=TOKEN_SCOPE_VERSION, scope_sha256=scope["sha256"] if scope else None,
+                            required_emitters=sorted({target["target"].lower(),
+                                *(pool for value in target.get("pools", []) if (pool := address(value)))}),
+                            start_block=start_block, end_block=target.get("cutoff_block", target.get("end_block")),
+                            boundary_node_statistic_scope="selected_token_pool_emitters")
         coverages.append(coverage)
         eligible_targets.append({**target, "coverage": coverage})
     # Etherscan logs supply timestamp; hydrate any receipt/RPC-style logs through block headers.

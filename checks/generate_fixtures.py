@@ -42,7 +42,7 @@ def generate(destination: Path) -> None:
                         "timeStamp": str(cutoff - 1800), "blockNumber": str(18000020 + i),
                         "isError": "0", "synthetic": True})
     # Fixed-width v2/Transfer logs to exercise the token data-only builders.
-    from chainrisk.transactions import TRANSFER_TOPIC, V2_TOPICS
+    from packages.transactions import TRANSFER_TOPIC, V2_TOPICS
     def topic_address(value):
         return "0x" + value[2:].rjust(64, "0")
     def words(*values):
@@ -79,4 +79,4 @@ def generate(destination: Path) -> None:
 
 
 if __name__ == "__main__":
-    generate(Path(__file__).parent / "fixtures" / "task_b")
+    generate(Path(__file__).parent / "fixtures" / "scam")

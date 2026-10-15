@@ -9,9 +9,9 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from chainrisk.bundle import (BUNDLE_VERSION, ModelBundle, export_model_bundle,
+from packages.bundle import (BUNDLE_VERSION, ModelBundle, export_model_bundle,
     load_model_bundle, predict_bundle)
-from chainrisk.graph import (EDGE_FEATURE_NAMES, FEATURE_NAMES, GRAPH_VIEW_VERSION,
+from packages.graph import (EDGE_FEATURE_NAMES, FEATURE_NAMES, GRAPH_VIEW_VERSION,
     RELATION_NAMES, SCHEMA_VERSION, batch_graph_samples, build_graph_sample,
     fit_scaler, get_graph_builder, graph_is_usable, validate_graph_sample)
 
@@ -72,7 +72,7 @@ class GraphDataTests(unittest.TestCase):
                 event(2, src=pool, dst=address(4), relation="external_eth"),
                 event(3, src=pool, dst=address(5), pool=pool, relation="swap", raw_amount=None)]
         graph = build_graph_sample(target(task_id="rug_pull", pools=[pool]), rows)
-        self.assertTrue(graph_is_usable(graph))
+        self.assertFalse(graph_is_usable(graph))  # Addresses alone are unverified context.
         self.assertEqual(graph["quality"]["observed_events"], 3)
         self.assertTrue({address(2), address(3), pool, address(4), address(5)}.issubset(graph["node_refs"]))
         self.assertIn("participates", {RELATION_NAMES[value] for value in graph["relation_ids"]})
@@ -186,11 +186,11 @@ class GraphDataTests(unittest.TestCase):
         self.assertIsNone(result["score"])
 
 
-@unittest.skipUnless(importlib.util.find_spec("torch") is not None, "PyTorch unavailable; numeric tests require the Task B environment")
+@unittest.skipUnless(importlib.util.find_spec("torch") is not None, "PyTorch unavailable; numeric tests require the Scam environment")
 class GraphModelTests(unittest.TestCase):
     def setUp(self):
         import torch
-        from chainrisk.models import create_model
+        from packages.models import create_model
         torch.manual_seed(42)
         self.torch = torch
         self.create_model = create_model
@@ -290,7 +290,7 @@ class GraphModelTests(unittest.TestCase):
                 load_model_bundle(path)
 
 
-    def test_proxy_score_semantics_and_data_only_export_rejection(self):
+    def test_proxy_score_semantics_and_token_schema_export_rejection(self):
         model = self.model()
         config = {"architecture_id": "directed_edge_sage", "hidden_dim": 8, "layers": 2, "dropout": 0.0}
         with tempfile.TemporaryDirectory() as temporary:

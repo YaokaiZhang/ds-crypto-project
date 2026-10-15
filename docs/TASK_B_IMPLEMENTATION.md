@@ -1,6 +1,6 @@
 # Task B implementation and usage guide
 
-Date: 2026-10-09. Release status: code and synthetic engineering checks only.
+Date: 2026-10-15. Release status: code and synthetic engineering checks only.
 No real training dataset, formal training run, research metrics or model weights
 are delivered.
 
@@ -8,9 +8,10 @@ are delivered.
 
 Phishing/Ponzi provide source import, ETH collection, normalization, evidence and
 label governance, directed local graphs, independent training/evaluation, model
-bundles and offline prediction. Honeypot/Rug Pull provide evidence import,
-ERC20/v2 event parsing, collection and initial graphs; training returns
-`data_only`. Rug Pull is limited to malicious Ethereum Uniswap v2 liquidity
+bundles and offline prediction. Honeypot/Rug Pull now provide selected-pool verification, evidence capture/import,
+ERC20/v2 collection, versioned mechanism features, dataset preparation and the
+same complete offline training/evaluation/bundle/prediction lifecycle. See the
+[token training guide](TOKEN_SCAM_TRAINING_PIPELINE.md). Rug Pull is limited to malicious Ethereum Uniswap v2 liquidity
 withdrawal.
 
 The four tasks are independent and may overlap; they are not mutually exclusive
@@ -140,3 +141,10 @@ verified for seven PDFs. The weighted-focal Phishing paper returned HTTP 403;
 its formal link is retained in the [paper manifest](../../researches/task-b-paper-manifest.json).
 Real data must pass evidence and temporal admission before formal training.
 Engineering checks do not establish research model quality.
+
+On 2026-10-15, **88 offline checks and 32 existing backend regression checks
+passed**. Token checks validate both graph schemas, selected-emitter collection,
+historical metadata verification, reviewed API/incident labels, temporal/pool
+isolation, preparation, training dry-run, both SAGE backbones, and frozen bundle
+evaluation/prediction. No real provider requests or formal training ran. Synthetic
+untrained model bundles existed only in temporary test directories.

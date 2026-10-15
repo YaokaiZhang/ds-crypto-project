@@ -12,9 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from .graph import (EDGE_FEATURE_NAMES, FEATURE_NAMES, GRAPH_VIEW_VERSION,
-    RELATION_NAMES, SCHEMA_VERSION, batch_graph_samples, graph_is_usable, graph_recipe,
-    validate_graph_sample)
+from .graph import (RELATION_NAMES, SCHEMA_VERSION, batch_graph_samples, graph_is_usable, graph_recipe,
+    validate_graph_sample, graph_schema)
 from .tasks import get_task
 
 BUNDLE_VERSION = "chainrisk-bundle-1.0"
@@ -41,13 +40,14 @@ def _bundle_digest(manifest: Mapping[str, Any]) -> str:
 
 
 def _validate_manifest(manifest: Mapping[str, Any], expected_task: str | None = None) -> None:
+    view, features, edge_features = graph_schema(manifest.get("task_id"))
     if manifest.get("bundle_version") != BUNDLE_VERSION:
         raise ValueError("unsupported model bundle version")
-    if manifest.get("schema_version") != SCHEMA_VERSION or manifest.get("graph_view_version") != GRAPH_VIEW_VERSION:
+    if manifest.get("schema_version") != SCHEMA_VERSION or manifest.get("graph_view_version") != view:
         raise ValueError("model bundle graph schema/version mismatch")
-    if manifest.get("feature_names") != FEATURE_NAMES or manifest.get("edge_feature_names") != EDGE_FEATURE_NAMES or manifest.get("relation_names") != RELATION_NAMES:
+    if manifest.get("feature_names") != features or manifest.get("edge_feature_names") != edge_features or manifest.get("relation_names") != RELATION_NAMES:
         raise ValueError("model bundle feature/relation schema mismatch")
-    if manifest.get("input_dim") != len(FEATURE_NAMES) or manifest.get("edge_dim") != len(EDGE_FEATURE_NAMES) or manifest.get("num_relations") != 2 * len(RELATION_NAMES):
+    if manifest.get("input_dim") != len(features) or manifest.get("edge_dim") != len(edge_features) or manifest.get("num_relations") != 2 * len(RELATION_NAMES):
         raise ValueError("model bundle dimensions incompatible with schema")
     if manifest.get("task_id") not in {"phishing", "ponzi", "honeypot", "rug_pull"} or manifest.get("chain_id") != 1:
         raise ValueError("unsupported model task/chain")
@@ -71,11 +71,12 @@ def export_model_bundle(
     training_manifest: Mapping[str, Any], calibration_status: str = "uncalibrated",
 ) -> dict[str, Any]:
     import torch
+    view, features, edge_features = graph_schema(task_id)
     destination = Path(path)
     destination.mkdir(parents=True, exist_ok=True)
     if any((destination / filename).exists() for filename in ("model.pt", "scaler.json", "manifest.json")):
         raise FileExistsError("refusing to overwrite an existing model bundle")
-    if scaler.get("feature_names") != FEATURE_NAMES or scaler.get("edge_feature_names") != EDGE_FEATURE_NAMES:
+    if scaler.get("feature_names") != features or scaler.get("edge_feature_names") != edge_features:
         raise ValueError("export scaler schema mismatch")
     config = dict(model_config)
     config.setdefault("architecture_id", "directed_edge_sage")
@@ -88,11 +89,11 @@ def export_model_bundle(
     manifest = {
         "bundle_version": BUNDLE_VERSION, "task_id": task_id, "chain_id": 1,
         "code_version": "chainrisk-0.1.0",
-        "schema_version": SCHEMA_VERSION, "graph_view_version": GRAPH_VIEW_VERSION,
-        "feature_names": list(FEATURE_NAMES), "edge_feature_names": list(EDGE_FEATURE_NAMES),
+        "schema_version": SCHEMA_VERSION, "graph_view_version": view,
+        "feature_names": features, "edge_feature_names": edge_features,
         "relation_names": list(RELATION_NAMES), "add_reverse": True,
         "graph_recipe": recipe,
-        "input_dim": len(FEATURE_NAMES), "edge_dim": len(EDGE_FEATURE_NAMES),
+        "input_dim": len(features), "edge_dim": len(edge_features),
         "num_relations": 2 * len(RELATION_NAMES), "model_config": config,
         "consumed_inputs": list(model.consumed_inputs), "threshold": threshold,
         "label_meanings": {"1": get_task(task_id).positive,
@@ -134,7 +135,7 @@ def load_model_bundle(path: str | Path, device: Any = "cpu", expected_task: str 
         if _sha256(directory / filename) != manifest.get(checksum_key):
             raise ValueError(f"model bundle checksum mismatch: {filename}")
     scaler = json.loads((directory / "scaler.json").read_text(encoding="utf-8"))
-    if scaler.get("feature_names") != FEATURE_NAMES or scaler.get("edge_feature_names") != EDGE_FEATURE_NAMES:
+    if scaler.get("feature_names") != manifest["feature_names"] or scaler.get("edge_feature_names") != manifest["edge_feature_names"]:
         raise ValueError("model bundle scaler schema mismatch")
     if scaler.get("graph_recipe") != manifest["graph_recipe"]:
         raise ValueError("model bundle scaler/manifest graph recipes disagree")

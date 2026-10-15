@@ -306,7 +306,9 @@ Restriction under tested conditions is observable; deliberate fraud needs
 additional mechanism/context. Keep `restriction_observed`,
 `simulation_inconclusive`, source subtype and reviewed labels separate. A model
 cannot generate its own ground truth from high scores. Simulation is outside
-the implemented data-only branch.
+the implemented offline branch. The 2026-10-15 revision adds reviewed API-defined
+labels and complete token training code; see
+[the token training guide](TOKEN_SCAM_TRAINING_PIPELINE.md).
 
 ### 9.5 Uniswap v2 Rug Pull
 

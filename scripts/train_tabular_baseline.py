@@ -19,6 +19,7 @@ import joblib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+from packages.progress import add_progress_arguments, progress_bar
 
 from scripts.train_graphsage import classification_metrics, select_threshold
 
@@ -107,8 +108,9 @@ def split_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     return result
 
 
-def feature_matrix(rows: list[dict[str, Any]]) -> np.ndarray:
-    return np.asarray([row_features(row) for row in rows], dtype=np.float64)
+def feature_matrix(rows: list[dict[str, Any]], *, progress: str = "auto", description: str = "Features") -> np.ndarray:
+    with progress_bar(rows, mode=progress, desc=description, unit="row", position=1, leave=False) as samples:
+        return np.asarray([row_features(row) for row in samples], dtype=np.float64)
 
 
 def labels_for(rows: list[dict[str, Any]]) -> np.ndarray:
@@ -166,35 +168,48 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     validation_rows = partitions["validation"]
     test_rows = partitions["test"]
 
-    raw_train_x = feature_matrix(train_rows)
-    scaler = StandardScaler().fit(raw_train_x)
-    train_x = scaler.transform(raw_train_x)
-    validation_x = scaler.transform(feature_matrix(validation_rows))
-    test_x = scaler.transform(feature_matrix(test_rows))
-    train_y = labels_for(train_rows)
-    positive_count = int(train_y.sum())
-    negative_count = len(train_rows) - positive_count
-    if positive_count == 0 or negative_count == 0:
-        raise ValueError("training split must contain both labels for class weighting")
-    positive_class_weight = negative_count / positive_count
+    progress = getattr(args, "progress", "auto")
+    with progress_bar(mode=progress, total=6, desc="Tabular: features and scaling", unit="stage") as stages:
+        raw_train_x = feature_matrix(train_rows, progress=progress, description="Features: train")
+        scaler = StandardScaler().fit(raw_train_x)
+        train_x = scaler.transform(raw_train_x)
+        validation_x = scaler.transform(feature_matrix(validation_rows, progress=progress, description="Features: validation"))
+        test_x = scaler.transform(feature_matrix(test_rows, progress=progress, description="Features: test"))
+        train_y = labels_for(train_rows)
+        positive_count = int(train_y.sum())
+        negative_count = len(train_rows) - positive_count
+        if positive_count == 0 or negative_count == 0:
+            raise ValueError("training split must contain both labels for class weighting")
+        positive_class_weight = negative_count / positive_count
+        stages.update(1)
 
-    model = LogisticRegression(
-        C=args.C,
-        class_weight={0: 1.0, 1: positive_class_weight},
-        max_iter=args.max_iter,
-        random_state=args.seed,
-        solver=args.solver,
-    )
-    model.fit(train_x, train_y)
+        stages.set_description("Tabular: logistic fit")
+        model = LogisticRegression(
+            C=args.C,
+            class_weight={0: 1.0, 1: positive_class_weight},
+            max_iter=args.max_iter,
+            random_state=args.seed,
+            solver=args.solver,
+        )
+        model.fit(train_x, train_y)
+        stages.update(1)
 
-    validation_labels = labels_for(validation_rows).tolist()
-    validation_scores = model.predict_proba(validation_x)[:, 1].astype(float).tolist()
-    decision_threshold = select_threshold(validation_labels, validation_scores)
-    train_metrics, train_predictions = evaluate(model, train_rows, train_x, "train", decision_threshold)
-    validation_metrics, validation_predictions = evaluate(
-        model, validation_rows, validation_x, "validation", decision_threshold
-    )
-    test_metrics, test_predictions = evaluate(model, test_rows, test_x, "test", decision_threshold)
+        stages.set_description("Tabular: validation threshold")
+        validation_labels = labels_for(validation_rows).tolist()
+        validation_scores = model.predict_proba(validation_x)[:, 1].astype(float).tolist()
+        decision_threshold = select_threshold(validation_labels, validation_scores)
+        stages.update(1)
+        stages.set_description("Tabular: evaluate train")
+        train_metrics, train_predictions = evaluate(model, train_rows, train_x, "train", decision_threshold)
+        stages.update(1)
+        stages.set_description("Tabular: evaluate validation")
+        validation_metrics, validation_predictions = evaluate(
+            model, validation_rows, validation_x, "validation", decision_threshold
+        )
+        stages.update(1)
+        stages.set_description("Tabular: evaluate test")
+        test_metrics, test_predictions = evaluate(model, test_rows, test_x, "test", decision_threshold)
+        stages.update(1)
 
     output.mkdir(parents=True, exist_ok=True)
     joblib.dump(
@@ -268,6 +283,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--solver", choices=("lbfgs", "liblinear"), default="lbfgs")
     result.add_argument("--C", type=float, default=1.0)
     result.add_argument("--max-iter", type=int, default=1000)
+    add_progress_arguments(result)
     return result
 
 

@@ -12,10 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from packages.chainrisk.collection import CollectionError, EtherscanClient, collect_dataset
-from packages.chainrisk.data import normalize_bundle, normalize_records
-from packages.chainrisk.labeling import SOURCE_ADAPTERS, import_labels, reconcile_labels
-from packages.chainrisk.transactions import TRANSFER_TOPIC, V2_TOPICS, decode_v2_log, resolve_transaction
+from packages.collection import CollectionError, EtherscanClient, collect_dataset
+from packages.data import normalize_bundle, normalize_records
+from packages.labeling import SOURCE_ADAPTERS, import_labels, reconcile_labels
+from packages.transactions import TRANSFER_TOPIC, V2_TOPICS, decode_v2_log, resolve_transaction
 
 A, B, POOL, FACTORY = ("0x" + digit * 40 for digit in "1234")
 TX = "0x" + "a" * 64
@@ -354,6 +354,10 @@ class CollectorTests(unittest.TestCase):
         cutoff = 1_000_000
         target = {"sample_id": "rug", "task_id": "rug_pull", "target": A,
                   "cutoff": cutoff, "pools": [POOL], "start_block": 1, "end_block": 2}
+        from packages.token import UNISWAP_V2_FACTORY
+        target.update(token_metadata={"decimals": 18, "verified_at_block": 2, "evidence_ref": "synthetic://token"},
+                      pool_metadata=[{"pool": POOL, "token0": A, "token1": B, "factory": UNISWAP_V2_FACTORY,
+                                      "verified_at_block": 2, "evidence_ref": "synthetic://pool"}])
         manifest = collect_dataset([target], self.root, {"fixtures": {"getLogs": [log(timeStamp=str(cutoff - 1))], "txlist": [], "txlistinternal": []}, "window_days": 7})
         self.assertTrue(manifest["complete"])
         self.assertEqual(manifest["coverage"][0]["observation_start"], cutoff - 7 * 86400)

@@ -6,13 +6,14 @@ build-backend = "setuptools.build_meta"
 name = "ds-crypto-project"
 version = "0.1.0"
 requires-python = ">=3.11"
-description = "Ethereum activity research and auditable Task B scam pipelines"
+description = "Ethereum activity research and auditable scam pipelines"
 dependencies = [
   "numpy>=1.26,<3",
   "torch>=2.5,<3",
   "scikit-learn>=1.5,<2",
   "pyarrow>=18,<24",
   "openpyxl>=3.1,<4",
+  "tqdm>=4.66,<5",
 ]
 
 [project.optional-dependencies]
@@ -24,12 +25,13 @@ serving = [
 ]
 
 [project.scripts]
-chainrisk-task-b = "research.task_b.cli:main"
+chainrisk-scam = "research.scam.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["packages", "."]
-include = ["chainrisk*", "research", "research.task_b*"]
+where = ["."]
+include = ["packages", "research", "research.scam", "research.scam.configs"]
+namespaces = true
 exclude = ["apps*", "deploy*", "scripts*", "checks*"]
 
 [tool.setuptools.package-data]
-"research.task_b" = ["configs/*.json", "source_catalog.json"]
+"research.scam" = ["configs/*.json", "source_catalog.json"]
