@@ -1,0 +1,13 @@
+:root {
+  --space-1: .5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2rem;
+  --space-5: 3rem;
+  --radius-panel: 24px;
+  --radius-control: 12px;
+  --font-body: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, monospace;
+  --blur-panel: 24px;
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+}

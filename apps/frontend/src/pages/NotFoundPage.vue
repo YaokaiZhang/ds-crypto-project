@@ -1,0 +1,1 @@
+<template><div class="placeholder-page"><h1>Page not found</h1><p>This address does not lead to a Chainrisk page.</p><RouterLink to="/" class="app-button" data-variant="primary">Back to Home</RouterLink></div></template>

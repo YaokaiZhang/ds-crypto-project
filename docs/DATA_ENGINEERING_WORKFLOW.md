@@ -4,6 +4,21 @@ This document defines the analytical data-engineering stage of the Ethereum
 token project. It turns auditable source collections into reproducible tables
 for exploratory analysis and modelling.
 
+As of the 2026-10-05 scope revision, this is the retained Task A workflow and
+the foundation for the shared system data layer. Proposed entity/event,
+evidence/label, task-view and serving extensions are defined in
+[SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md](SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md)
+and [SCAM_TASK_CONTRACT.md](SCAM_TASK_CONTRACT.md). They are not yet implemented
+by the existing token SQL tables. Preserve task-specific event semantics and
+keep supervised labels separate from label-free inference graphs. Incremental
+collection feeds versioned snapshots; it does not imply online retraining.
+
+Practical source selection, collector behavior, graph exchange fields, label
+evidence review, and pilot admission are detailed in
+[PLATFORM_ENGINEERING_AND_DATA_GUIDE.md](PLATFORM_ENGINEERING_AND_DATA_GUIDE.md).
+The two business backends reuse normalized facts through task-specific views;
+their labels and experiment artifacts remain separate.
+
 ## Scope
 
 The workflow is batch-oriented and research-scale. It is designed to be
@@ -43,7 +58,7 @@ Keep these products separate:
 - `outcomes`: primary and sensitivity labels plus volume evidence;
 - `censoring`: incomplete or unreliable retrieval reasons;
 - `candidates` and `sampling`: label-blind selection metadata and weights;
-- `splits`: general 80/10/10 token-level partitions and overlap groups;
+- `splits`: general 90/10 train/validation token-level partitions and overlap groups;
 - `features`: cutoff-bounded token and market features;
 - `feature_audit`: raw-event and boundary-exclusion counts used for leakage
   checks, kept out of model-facing features;
@@ -126,7 +141,7 @@ Before modelling, the pipeline must reproduce:
 - primary volume totals and labels from positive historical `amountUSD` values;
 - explicit censoring reasons rather than inferred negative labels;
 - selection probabilities, cohort roles, and sampling weights;
-- 80/10/10 split assignments stratified by label and launch period, with
+- 90/10 train/validation assignments stratified by label and launch period, with
   overlap exclusions or group-preserving adjustments;
 - no post-cutoff event, outcome, or market data in feature tables;
 - zero duplicate event keys and explicit boundary counts in

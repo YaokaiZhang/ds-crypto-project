@@ -1,0 +1,59 @@
+{
+  "config_version": "phishing-recent-2",
+  "task_id": "phishing",
+  "experiment_mode": "known_positive_vs_unlabeled",
+  "seed": 20261008,
+  "graph": {
+    "builder_name": "address_flow",
+    "window_days": 30,
+    "hops": 2,
+    "fanouts": [
+      32,
+      16
+    ],
+    "max_nodes": 512,
+    "max_edges": 4096,
+    "seed": 20261008,
+    "sampling_mode": "recent_bounded_v1",
+    "rows_per_action": 100,
+    "pages_per_action": 1
+  },
+  "collection": {
+    "actions": [
+      "txlist",
+      "txlistinternal"
+    ],
+    "page_size": 100,
+    "rate_limit_rps": 2.5,
+    "retries": 3,
+    "max_pages": 1,
+    "workers": 10,
+    "max_response_bytes": 4194304,
+    "retention": "compact_events_and_graph_delete_raw",
+    "sample_workers": 4,
+    "max_sample_bytes": 16777216
+  },
+  "model": {
+    "architecture_id": "mean_sage",
+    "layers": 2,
+    "hidden_dim": 256,
+    "dropout": 0.2
+  },
+  "loss": {
+    "name": "weighted_bce"
+  },
+  "batch_size": 32,
+  "epochs": 200,
+  "patience": 25,
+  "learning_rate": 0.001,
+  "weight_decay": 0.0001,
+  "min_delta": 0.0001,
+  "device": "cpu",
+  "training_as_of": null,
+  "fit_tabular_baselines": false,
+  "precision_at_k": 10,
+  "negative_meaning": "frozen label-blind unlabeled background, never verified benign",
+  "execution_status": "configuration_only_not_trained",
+  "history_policy": "bounded_recent",
+  "background_policy": "poison_hunter_only"
+}

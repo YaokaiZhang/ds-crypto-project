@@ -39,8 +39,8 @@ therefore the feature window and label window.
 6. After labels are complete, retain all eligible labeled rows. Do not
    relabel, duplicate, or discard tokens to manufacture a balanced development
    sample.
-7. Assign each eligible token to train, validation, or test using the general
-   80/10/10 policy. Stratify within label and launch-period strata and keep
+7. Assign each eligible token to train or validation using the 2026-10-20
+   90/10 policy. Stratify within label and launch-period strata and keep
    each overlap group in one partition.
 
 ## General split policy
@@ -56,14 +56,13 @@ The primary model split is:
 
 | Partition | Share within each label/launch stratum |
 | --- | ---: |
-| Training | 80% |
+| Training | 90% |
 | Validation | 10% |
-| Test | 10% |
 
 For example, if the eligible population contains 1,000
 `continued_activity` and 1,000 `low_volume_dead` rows, the intended counts are
-800 active plus 800 dead in training, 100 active plus 100 dead in validation,
-and 100 active plus 100 dead in test. Overlap-group constraints may adjust an
+900 active plus 900 dead in training and 100 active plus 100 dead in validation.
+Overlap-group constraints may adjust an
 individual count slightly; the final manifest is authoritative.
 
 Use all eligible training rows. If the complete population is not balanced,
@@ -79,7 +78,7 @@ The candidate and sampling manifests must preserve:
 - candidate-frame selection rule and selection probability;
 - launch-period and activity or pool-count strata;
 - complete primary label and censoring reason;
-- cohort role: training, validation, test, or excluded;
+- cohort role: training, validation, or excluded;
 - candidate-selection or enrichment reason;
 - case-control or inverse-probability weight, when applicable;
 - split version, ratio, seed, and stratum assignment;
@@ -91,8 +90,12 @@ Record the wallet-graph input version, participant-field coverage, and
 missing-participant counts separately from the sampling manifest.
 
 Train on the general training partition and tune thresholds, calibration, and
-hyperparameters on validation only. Keep test labels locked until the final
-evaluation. Report per-partition class counts, test prevalence, sampling
+hyperparameters on validation only. Report final validation Accuracy and mark
+validation as reused for model/threshold selection, not an independent test
+estimate. There is no test partition. Preserve historical results and create
+new split/output versions instead of rewriting old archives. Report per-partition
+class counts, validation prevalence, Balanced Accuracy, raw and row-normalized
+confusion matrices, sampling
 weights, and review-budget measures such as `Precision@K`. Do not treat a
 balanced class allocation as a market-prevalence estimate. A chronological
 stress-test result is secondary to the general split.

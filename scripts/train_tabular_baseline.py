@@ -19,12 +19,13 @@ import joblib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+from packages.progress import add_progress_arguments, progress_bar
 
 from scripts.train_graphsage import classification_metrics, select_threshold
+from packages.evaluation_protocol import PARTITIONS, evaluation_policy, final_validation_report
 
 
 LABEL_TO_INT = {"low_volume_dead": 0, "continued_activity": 1}
-PARTITIONS = ("train", "validation", "test")
 FEATURE_NAMES = [
     "event_count",
     "swap_count",
@@ -76,7 +77,7 @@ def validate_rows(rows: list[dict[str, Any]]) -> None:
         if row.get("label") not in LABEL_TO_INT:
             raise ValueError(f"target manifest contains invalid label: {row.get('label')!r}")
         if row.get("partition") not in PARTITIONS:
-            raise ValueError(f"target manifest contains invalid partition: {row.get('partition')!r}")
+            raise ValueError(f"expected a frozen 90/10 train/validation manifest, got {row.get('partition')!r}; regenerate legacy splits into a new output")
         if row.get("feature_complete") is not True:
             raise ValueError(f"target row is not feature-complete: {row}")
         row_features(row)
@@ -91,6 +92,8 @@ def apply_partition_override(rows: list[dict[str, Any]], path: Path) -> None:
     for record in table.to_pylist():
         key = (str(record["token_address"]), str(record["source_dataset"]))
         partition = record["partition"]
+        if partition == "test":
+            raise ValueError("legacy partition override requires a new 90/10 split")
         if partition in PARTITIONS:
             override[key] = str(partition)
     missing = [row_key(row) for row in rows if row_key(row) not in override]
@@ -103,12 +106,15 @@ def apply_partition_override(rows: list[dict[str, Any]], path: Path) -> None:
 def split_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     result = {partition: [row for row in rows if row["partition"] == partition] for partition in PARTITIONS}
     if any(not result[partition] for partition in PARTITIONS):
-        raise ValueError("target manifest must contain train, validation, and test rows")
+        raise ValueError("target manifest must contain train and validation rows")
+    if any({row['label'] for row in subset} != set(LABEL_TO_INT) for subset in result.values()):
+        raise ValueError("train and validation splits must both contain both labels")
     return result
 
 
-def feature_matrix(rows: list[dict[str, Any]]) -> np.ndarray:
-    return np.asarray([row_features(row) for row in rows], dtype=np.float64)
+def feature_matrix(rows: list[dict[str, Any]], *, progress: str = "auto", description: str = "Features") -> np.ndarray:
+    with progress_bar(rows, mode=progress, desc=description, unit="row", position=1, leave=False) as samples:
+        return np.asarray([row_features(row) for row in samples], dtype=np.float64)
 
 
 def labels_for(rows: list[dict[str, Any]]) -> np.ndarray:
@@ -164,37 +170,45 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     partitions = split_rows(rows)
     train_rows = partitions["train"]
     validation_rows = partitions["validation"]
-    test_rows = partitions["test"]
 
-    raw_train_x = feature_matrix(train_rows)
-    scaler = StandardScaler().fit(raw_train_x)
-    train_x = scaler.transform(raw_train_x)
-    validation_x = scaler.transform(feature_matrix(validation_rows))
-    test_x = scaler.transform(feature_matrix(test_rows))
-    train_y = labels_for(train_rows)
-    positive_count = int(train_y.sum())
-    negative_count = len(train_rows) - positive_count
-    if positive_count == 0 or negative_count == 0:
-        raise ValueError("training split must contain both labels for class weighting")
-    positive_class_weight = negative_count / positive_count
+    progress = getattr(args, "progress", "auto")
+    with progress_bar(mode=progress, total=5, desc="Tabular: features and scaling", unit="stage") as stages:
+        raw_train_x = feature_matrix(train_rows, progress=progress, description="Features: train")
+        scaler = StandardScaler().fit(raw_train_x)
+        train_x = scaler.transform(raw_train_x)
+        validation_x = scaler.transform(feature_matrix(validation_rows, progress=progress, description="Features: validation"))
+        train_y = labels_for(train_rows)
+        positive_count = int(train_y.sum())
+        negative_count = len(train_rows) - positive_count
+        if positive_count == 0 or negative_count == 0:
+            raise ValueError("training split must contain both labels for class weighting")
+        positive_class_weight = negative_count / positive_count
+        stages.update(1)
 
-    model = LogisticRegression(
-        C=args.C,
-        class_weight={0: 1.0, 1: positive_class_weight},
-        max_iter=args.max_iter,
-        random_state=args.seed,
-        solver=args.solver,
-    )
-    model.fit(train_x, train_y)
+        stages.set_description("Tabular: logistic fit")
+        model = LogisticRegression(
+            C=args.C,
+            class_weight={0: 1.0, 1: positive_class_weight},
+            max_iter=args.max_iter,
+            random_state=args.seed,
+            solver=args.solver,
+        )
+        model.fit(train_x, train_y)
+        stages.update(1)
 
-    validation_labels = labels_for(validation_rows).tolist()
-    validation_scores = model.predict_proba(validation_x)[:, 1].astype(float).tolist()
-    decision_threshold = select_threshold(validation_labels, validation_scores)
-    train_metrics, train_predictions = evaluate(model, train_rows, train_x, "train", decision_threshold)
-    validation_metrics, validation_predictions = evaluate(
-        model, validation_rows, validation_x, "validation", decision_threshold
-    )
-    test_metrics, test_predictions = evaluate(model, test_rows, test_x, "test", decision_threshold)
+        stages.set_description("Tabular: validation threshold")
+        validation_labels = labels_for(validation_rows).tolist()
+        validation_scores = model.predict_proba(validation_x)[:, 1].astype(float).tolist()
+        decision_threshold = select_threshold(validation_labels, validation_scores)
+        stages.update(1)
+        stages.set_description("Tabular: evaluate train")
+        train_metrics, train_predictions = evaluate(model, train_rows, train_x, "train", decision_threshold)
+        stages.update(1)
+        stages.set_description("Tabular: evaluate validation")
+        validation_metrics, validation_predictions = evaluate(
+            model, validation_rows, validation_x, "validation", decision_threshold
+        )
+        stages.update(1)
 
     output.mkdir(parents=True, exist_ok=True)
     joblib.dump(
@@ -208,12 +222,14 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         },
         output / "model.joblib",
     )
-    predictions = train_predictions + validation_predictions + test_predictions
+    predictions = train_predictions + validation_predictions
     with (output / "predictions.jsonl").open("w", encoding="utf-8") as handle:
         for row in predictions:
             handle.write(json.dumps(row, sort_keys=True, ensure_ascii=True) + "\n")
     metrics = {
-        "manifest_version": "tabular-logistic-general-stratified-0.2",
+        "manifest_version": "tabular-logistic-general-stratified-0.3",
+        "evaluation": evaluation_policy(),
+        "final_report": final_validation_report(validation_metrics),
         "split_name": args.split_name,
         "targets": str(targets),
         "partition_override": str(partition_override) if partition_override else None,
@@ -239,9 +255,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "metrics": {
             "train": train_metrics,
             "validation": validation_metrics,
-            "test": test_metrics,
         },
-        "test_use": "scored once after validation threshold selection; not used for tuning",
     }
     (output / "metrics.json").write_text(
         json.dumps(metrics, indent=2, sort_keys=True, ensure_ascii=True) + "\n",
@@ -268,6 +282,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--solver", choices=("lbfgs", "liblinear"), default="lbfgs")
     result.add_argument("--C", type=float, default=1.0)
     result.add_argument("--max-iter", type=int, default=1000)
+    add_progress_arguments(result)
     return result
 
 

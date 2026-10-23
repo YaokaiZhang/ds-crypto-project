@@ -1,6 +1,58 @@
-# Plan: Early prediction of low-volume Ethereum token-project outcomes
+# Plan: Ethereum on-chain activity and risk analysis
 
-This plan implements [GOAL.md](GOAL.md). It is a five-week data-analysis project. The model predicts the operationally defined low-volume outcome; it does not infer fraud or provide investment advice.
+This plan implements [GOAL.md](GOAL.md). The system scope was expanded on
+2026-10-05 to include independent classic scam-screening tasks and a shared
+data/graph/service platform. The detailed requirements, dependencies,
+acceptance gates and effort estimates are in
+[SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md](docs/SYSTEM_REQUIREMENTS_AND_ARCHITECTURE.md).
+
+## System delivery sequence
+
+1. **P0 - Evidence and contracts:** recover current Task A experiment artifacts
+   and missing specifications; admit one actually readable scam dataset and
+   freeze label/entity/time semantics. Preserve historical reports.
+2. **P1 - Shared infrastructure:** extend raw/Parquet/DuckDB provenance with
+   task adapters, graph views, evidence/label records and quality gates.
+3. **P2 - Two task-family loop:** extract reusable GraphSAGE components,
+   separate unlabeled inference, and evaluate independent activity and
+   phishing models against matched non-graph baselines.
+4. **P3 - Remaining classic cases:** add Ponzi historical interactions and
+   honeypot graph screening plus state/rule/simulation evidence. Each branch
+   needs its own data card, evaluation or explicitly limited case-study status.
+5. **P4 - Unified delivery:** implement asynchronous API/worker, model registry,
+   result history and evidence UI; test real unlabeled requests, freshness,
+   overload, recovery and rollback. Run later-cohort/shadow validation before
+   broad live generalization claims.
+   Route the common frontend through separately callable Token and Scam
+   backends, and expose independent per-task EDA and benchmark results. Follow
+   [the engineering/data guide](docs/PLATFORM_ENGINEERING_AND_DATA_GUIDE.md)
+   for GraphSample interfaces, experiment archives, and the small self-data
+   collection/label-adjudication pilot before scaling collection.
+6. **P5 - Optional research:** compare relation-aware SAGE, train-period
+   pretraining and shared multi-task weights. Keep independent models if
+   joint training causes unacceptable task degradation.
+
+All four classic scam branches remain in scope, but deployment readiness is
+gated separately. Within the original five-week coursework budget, prioritize
+Task A plus one rigorous scam graph experiment and a unified demonstration;
+do not promise full four-task live validation and multi-task pretraining
+without additional data and resources. Newly collected token outcomes need
+approximately 97 days from t0 to mature, plus ingestion/verification delay.
+
+The 2026-10-09 Task B code delivery formally includes Ethereum Uniswap v2
+malicious liquidity withdrawal. Phishing/Ponzi implement offline data,
+graph, training and evaluation interfaces; Honeypot/Rug Pull implement data
+and initial graphs only. Synthetic checks verify engineering contracts;
+no real training dataset, fitted model or performance claim is delivered.
+Use the existing root uv environment. See
+[the implementation guide](docs/TASK_B_IMPLEMENTATION.md).
+
+## Retained Task A research work packages
+
+The five-week outline below remains Task A's research plan, not evidence that
+each stage is unfinished or a new system-wide deadline. Task A predicts the
+operational low-volume outcome; it does not infer fraud or provide investment
+advice. Its primary label and split remain unchanged.
 
 ## 1. Freeze the task and establish feasibility - week 1
 
@@ -115,4 +167,12 @@ Deliver the report, slides, reproducibility instructions, data dictionary, model
 
 ## Immediate next milestone
 
-Produce the source-feasibility matrix, selected-DEX and event schema, low-volume label specification, market-context schema, general split configuration, and audited pilot cohort. Do not implement the static GNN until 90-day follow-up, class support, and the general split are feasible. Record temporal GNN work as optional exploration.
+Audit the artifacts behind the completed 2026-10-03 wallet-graph report and
+recover missing schemas/manifests; do not restart from the assumption that
+GraphSAGE has not been implemented. Reconcile the 2,000-row balanced pilot
+with the current all-eligible sampling contract without rewriting its results.
+Admit one phishing dataset and implement the next change as a shared graph
+interface plus label-free inference, with task-specific adapters and models.
+Follow [SCAM_TASK_CONTRACT.md](docs/SCAM_TASK_CONTRACT.md). Keep temporal GNNs,
+shared pretraining, and joint weights optional until the independent-task
+baselines and leakage checks are established.
