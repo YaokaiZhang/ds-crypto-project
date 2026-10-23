@@ -40,7 +40,8 @@ def _bundle_digest(manifest: Mapping[str, Any]) -> str:
 
 
 def _validate_manifest(manifest: Mapping[str, Any], expected_task: str | None = None) -> None:
-    view, features, edge_features = graph_schema(manifest.get("task_id"))
+    mode = manifest.get("graph_recipe", {}).get("sampling", {}).get("sampling_mode")
+    view, features, edge_features = graph_schema(manifest.get("task_id"), mode)
     if manifest.get("bundle_version") != BUNDLE_VERSION:
         raise ValueError("unsupported model bundle version")
     if manifest.get("schema_version") != SCHEMA_VERSION or manifest.get("graph_view_version") != view:
@@ -71,7 +72,7 @@ def export_model_bundle(
     training_manifest: Mapping[str, Any], calibration_status: str = "uncalibrated",
 ) -> dict[str, Any]:
     import torch
-    view, features, edge_features = graph_schema(task_id)
+    view, features, edge_features = graph_schema(task_id, scaler.get("graph_recipe", {}).get("sampling", {}).get("sampling_mode"))
     destination = Path(path)
     destination.mkdir(parents=True, exist_ok=True)
     if any((destination / filename).exists() for filename in ("model.pt", "scaler.json", "manifest.json")):

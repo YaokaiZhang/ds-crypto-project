@@ -1,154 +1,60 @@
-# Task B offline framework
+# Scam 离线数据与训练
 
-This release implements code, versioned configurations and synthetic engineering
-checks. It has not collected real training data, fitted a research model, or
-released weights/performance results. All four tasks have complete offline training pipelines. Honeypot and Uniswap
-v2 liquidity rug pull use verified selected pools and `token-v2-scoped-2.0`.
-See the [token training guide](../../docs/TOKEN_SCAM_TRAINING_PIPELINE.md) for
-metadata verification, API/incident labels and the full command sequence.
-
-## Environment and checks
-
-Use the existing project uv environment on Apple Silicon, with Python 3.11:
+四个任务共用 `scripts/scam/run_pipeline.py`。当前阶段和命令以
+[统一入口说明](../../docs/SCAM_PIPELINE.md) 为准。
 
 ```bash
-cd /Users/austin/Documents/Courses/DS-Project/ds-crypto-project
-uv sync --frozen --python 3.11
-uv run --frozen python -m unittest discover -s checks -v
-uv run --frozen chainrisk-task-b --help
+.venv/bin/python scripts/scam/run_pipeline.py --help
+.venv/bin/python scripts/scam/run_pipeline.py --task ponzi --snapshot xblock-unica-recent-v1 --stage all --run mean-sage-v2 --dry-run
 ```
 
-The root `uv.lock` freezes dependencies. CPU is the reproducible default. Explicit
-`--device mps` is supported when PyTorch reports MPS available; it fails clearly
-otherwise. `auto` chooses an available device. Task A entrypoints and its
-historical experiment artifacts are not migrated or relabeled.
+固定阶段：`sources → collect → prepare → train`，以及 `all`、`status`。
+`all` 执行到训练，必须指定 `--run`；只处理数据时分别调用前三个阶段。
+`chainrisk-scam` 和 `python -m research.scam` 使用相同参数；旧子命令入口已收回为内部实现。
 
-## Synthetic preparation example (no training)
+## 当前保留结果
 
-All fixture addresses, transactions and labels are invented, explicitly marked
-synthetic, and unsuitable for research conclusions. Run the following for
-`phishing`; repeat with `ponzi` for supervised task-specific labels.
+| 任务 | 快照 | graph-run | 模型 run |
+|---|---|---|---|
+| Phishing | forta-recent-v1 | 不适用 | mean-sage-v1 |
+| Ponzi | xblock-unica-recent-v1 | 不适用 | mean-sage-v1 |
+| Honeypot | trapdoor-api-v1 | all-recent-v1 | sage-v1 |
+| Rug Pull | tokenscout-eligible-1500-v2 | recent-v1 | sage-v1 |
+
+四套模型均已完成本地训练。新训练必须使用新 run 名称，已有模型可用 dry-run 校验。
+
+## 实现职责
+
+- `pipeline.py`：固定阶段、任务适配、重试及统一训练调度。
+- `_commands.py`：内部数据/模型操作分派，供 pipeline 和工程测试使用。
+- `phishing.py/recent.py/ponzi.py`：地址任务数据流程。
+- `honeypot.py/honeypot_graphs.py/honeypot_training.py`：Honeypot 证据、图及训练准备。
+- `rug_pull.py/rug_pull_graphs.py/rug_pull_training.py`：Rug Pull 来源、池、图及训练准备。
+- `preparation.py/splitting.py/training.py`：通用准入、分组划分及训练。
+- `storage.py/compaction.py/execution.py/failure_exclusions.py`：路径、存储、恢复及失败排除。
+- `packages/`：来源、采集、标准化、图、模型和模型包的共享实现。
+
+数据位于 `data/scam/`，交易重放依赖位于 `data/shared/`，模型位于
+`artifacts/scam/`，专项诊断结果位于 `reports/`。
+独立 Honeypot/Rug Pull audit 脚本和 Ponzi 来源校验脚本已删除；
+必要的来源审计、元数据验证和校验和检查由流程内部执行。既有分析报告保留。
+
+## 研究约束与维护
+
+四个任务独立建模，使用分层、分组约束的 90/10 训练/验证划分。
+标准化器只拟合训练数据，验证 AP 选择检查点，验证 Macro-F1 选择阈值。
+验证集同时参与选择，没有独立测试集。Phishing 背景为未标注样本；
+Ponzi/Honeypot/Rug Pull 的来源与时间局限仍按各任务契约解释。
+
+采集样本保持冻结目标、图配方、来源证据、失败排除记录和校验值。
+共享 `events.jsonl.gz` 是复现依赖，不能当普通缓存删除。
+已有数据的无损压缩迁移工具 `scripts/scam/compact_storage.py` 保留为维护工具，
+不属于常规训练入口。API/RPC 连通性检查脚本同样仅作诊断。
 
 ```bash
-uv run --frozen chainrisk-task-b normalize --task phishing --input checks/fixtures/task_b/raw_events.jsonl --output data/task_b/synthetic/events.jsonl
-uv run --frozen chainrisk-task-b import-labels --task phishing --source audited --input checks/fixtures/task_b/audited_labels.csv --output data/task_b/synthetic/phishing-labels.jsonl
-uv run --frozen chainrisk-task-b label --task phishing --input data/task_b/synthetic/phishing-labels.jsonl --targets checks/fixtures/task_b/targets.jsonl --output data/task_b/synthetic/phishing-supervision.jsonl
-uv run --frozen chainrisk-task-b build-graphs --task phishing --events data/task_b/synthetic/events.jsonl --targets checks/fixtures/task_b/targets.jsonl --output data/task_b/synthetic/phishing-graphs.jsonl
-uv run --frozen chainrisk-task-b split --task phishing --supervision data/task_b/synthetic/phishing-supervision.jsonl --output data/task_b/synthetic/phishing-splits.jsonl
-uv run --frozen chainrisk-task-b train --task phishing --graphs data/task_b/synthetic/phishing-graphs.jsonl --supervision data/task_b/synthetic/phishing-supervision.jsonl --splits data/task_b/synthetic/phishing-splits.jsonl --dry-run
-uv run --frozen chainrisk-task-b predict --task phishing --graphs data/task_b/synthetic/phishing-graphs.jsonl --output data/task_b/synthetic/unavailable-predictions.jsonl
-uv run --frozen chainrisk-task-b resolve-transaction --input checks/fixtures/task_b/transaction.json
+.venv/bin/python -m unittest discover -s checks -v
 ```
 
-Prediction without a bundle returns
-`model_unavailable` and null scores; it never fabricates demo output. Transaction
-resolution returns related entities and candidate tasks, not a transaction score.
-All commands support `--dry-run` without output writes or network requests.
-
-## Real data preparation (future user execution)
-
-A targets JSONL record requires `sample_id`, `task_id`, Ethereum `target`, integer
-Unix `cutoff`, and `chain_id=1`. Token tasks additionally require verified v2 pool
-addresses in `pools` and cutoff-bound `pool_metadata`/`token_metadata`, produced
-by `verify-token-targets` or an equivalent reviewed snapshot. Choose a historical cutoff applicable to the source label;
-old incident lists do not establish a valid present-day positive sample.
-
-```bash
-uv run --frozen chainrisk-task-b collect --task ponzi --targets targets.jsonl --output data/task_b/ponzi/snapshot --dry-run
-# Set ETHERSCAN_API_KEY in the process environment before explicit collection.
-uv run --frozen chainrisk-task-b collect --task ponzi --targets targets.jsonl --output data/task_b/ponzi/snapshot --allow-network
-uv run --frozen chainrisk-task-b build-graphs --task ponzi --events data/task_b/ponzi/snapshot/events.jsonl --targets data/task_b/ponzi/snapshot/targets_with_coverage.jsonl --output data/task_b/ponzi/graphs.jsonl
-```
-
-Etherscan external/internal address histories are the ETH mainline. Complete call
-trees are not claimed. `tokentx` is opt-in; missing log identities require receipts.
-The default graph is 30 days, 2 hops, fanouts 32/16, 512 nodes, 4096 aggregate
-edges. Root and selected first-hop histories are collected; boundary-node
-statistics describe the sampled observed subgraph. Request gaps fail coverage;
-intentional graph-budget sampling is separately recorded. Token collection covers
-the target and verified selected pools with explicit emitter coverage. Its graphs
-can train independent Honeypot/Rug models; the collector is not itself a detector
-or a historical fork simulator.
-
-Token collection also includes external/internal ETH histories for the token
-and selected pools to preserve outgoing funds. Optional target `factories`
-collect factory logs, including window-bounded PairCreated; this does not perform
-all-chain pool discovery. Verified target `pools` and `pool_evidence_ref` preserve
-membership when creation predates the window. Historical target-token transfers
-connect wallets via a separate `participates` relation, never an ownership or
-maliciousness assertion. LP balances remain unknown; observed raw net flows are
-stored separately with their sampled scope.
-
-Raw responses/cache checksums, coverage, normalization audits, normalized events,
-and targets are saved separately. Graph construction automatically reads adjacent
-normalization audits; use `--audit PATH` for a nonstandard audit location. JSONL
-and `.parquet` output are supported; Parquet includes lossless record JSON for
-heterogeneous nested lineage.
-
-## Evidence and supervision
-
-Local adapters: `forta`, `xblock_ponzi` (CSV or ZIP), `unica`, `tokenscout`
-(`--mapping token-dict.json`), `crpwarner` (XLSX/CSV), `xblock_phishing`, `audited`.
-They import source evidence without automatically approving unknown roles/time.
-See [source_catalog.json](source_catalog.json) for schemas, source links and admission limitations.
-
-An audited CSV contains `task_id,entity_id,mapped_label,label_status,role,
-audit_decision,valid_from,valid_to,label_available_at,evidence_ref`. Valid times
-are Unix seconds or timezone-aware ISO strings. A reviewed positive/negative
-must have matching polarity, task role and period; evidence conflicts stay
-disputed. All source records and their checksums remain auditable.
-
-Phishing defaults to `known_positive_vs_unlabeled`: an unlabeled background must
-have explicit `data_eligible=true`, `background_selected=true`, and a frozen
-`cohort_id`. Canonical unknown labels remain unknown; only experiment records
-receive `observed_target=0`. P/U scores and metrics describe that selected
-benchmark, not population false-positive rate or verified benignness.
-
-Repeated entities stay together. Verified campaign groups need `group_verified`
-and `group_ref`/`group_evidence_ref`; common routers alone do not define groups.
-80/10/10 class support is mandatory; insufficient support fails without trying
-favorable seeds. `--training-as-of` enforces label-availability time.
-
-## Future training, evaluation and export
-
-After independent real-data admission, supply the frozen artifacts:
-
-```bash
-uv run --frozen chainrisk-task-b train --task ponzi --graphs graphs.jsonl --supervision supervision.jsonl --splits splits.jsonl --architecture directed_edge_sage --loss focal --device cpu --output data/task_b/ponzi/run
-uv run --frozen chainrisk-task-b evaluate --task ponzi --graphs graphs.jsonl --supervision supervision.jsonl --splits splits.jsonl --bundle data/task_b/ponzi/run/bundle --partition test --output data/task_b/ponzi/evaluation
-uv run --frozen chainrisk-task-b export --task ponzi --run-dir data/task_b/ponzi/run --output data/task_b/ponzi/exported-bundle
-uv run --frozen chainrisk-task-b predict --task ponzi --graphs unlabeled-graphs.jsonl --bundle data/task_b/ponzi/exported-bundle --output predictions.jsonl
-```
-
-These commands are provided, not executed in this release. `train` validates
-quality, sample/entity/cutoff joins and frozen split isolation, fits scalers only
-on train, selects checkpoint by validation AP and threshold by validation
-macro-F1, then reports the locked test. The model bundle freezes task, feature
-order, graph recipe, relation semantics, consumed inputs, scaler and checksums.
-The model version digest covers the entire manifest including weight/scaler
-checksums, threshold and score semantics. Evaluation uses the bundle's frozen
-configuration and rejects a different graph recipe; it never selects a threshold.
-Export refuses overwrites. Test evaluation is an explicit operation and must not
-be repeatedly used to choose models.
-
-`experiment_matrix.json` records MeanSAGE, directed-edge SAGE, focal and depth/
-direction/relation/edge-attribute comparisons. It does not run a parameter sweep.
-Own-feature Logistic Regression and neighborhood/edge-summary gradient boosting
-use the same eligible samples and split. nnPU/shared pretraining remain deferred.
-
-Verification on 2026-10-09: 74 synthetic checks passed in the existing frozen uv
-environment (Python 3.11.16, arm64, PyTorch 2.14.1), including CLI integration,
-auto-device resolution, missing weights and frozen-recipe rejection. Numerical
-checks used CPU; MPS performance and research model quality are unvalidated.
-
-## Architecture
-
-`TaskSpec` is an immutable registry entry. `SourceAdapter` imports evidence;
-`GraphBuilder` chooses relation/topology policy; backbone/loss factories choose
-model strategies. CLI handlers orchestrate I/O and call these components; they
-do not define fraud truth or duplicate model implementations. Add a mechanism
-by registering its task specification, audited source mapping, graph policy and
-configuration. Task admission requires versioned inputs and supervised evidence, not merely a CLI flag.
-
-The implementation guide is
-[`TASK_B_IMPLEMENTATION.md`](../../docs/TASK_B_IMPLEMENTATION.md).
+各任务的来源和历史实验说明见 `docs/PHISHING_OFFLINE_PIPELINE.md`、
+`docs/PONZI_OFFLINE_PIPELINE.md`、`docs/HONEYPOT_GRAPH_PIPELINE.md` 和
+`docs/RUG_PULL_TRAINING_PIPELINE.md`。统一公共阶段以新的入口说明为准。

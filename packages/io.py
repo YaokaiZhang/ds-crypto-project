@@ -6,8 +6,31 @@ import gzip
 import hashlib
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Iterable
+
+
+def atomic_bytes(path: str | Path, value: bytes, *, immutable=False) -> bool:
+    """Publish complete bytes; immutable caches use first-writer-wins semantics."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".publish-", delete=False) as handle:
+        temporary = Path(handle.name)
+        try:
+            handle.write(value)
+            handle.flush()
+            os.fsync(handle.fileno())
+            if immutable:
+                try:
+                    os.link(temporary, path)
+                except FileExistsError:
+                    return False
+            else:
+                os.replace(temporary, path)
+            return True
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 def sha256_file(path: str | Path) -> str:
@@ -16,6 +39,33 @@ def sha256_file(path: str | Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def gzip_content_sha256(path: str | Path) -> str:
+    """Hash the original bytes, also validating the gzip stream and its CRC."""
+    digest = hashlib.sha256()
+    with gzip.open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def compress_file(source: str | Path, destination: str | Path) -> None:
+    """Atomically gzip exact source bytes; never remove the source."""
+    import shutil
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=destination.parent, prefix=".compress-", delete=False) as handle:
+        temporary = Path(handle.name)
+        try:
+            with Path(source).open("rb") as original, gzip.GzipFile(
+                    filename="", mode="wb", fileobj=handle, mtime=0, compresslevel=6) as compressed:
+                shutil.copyfileobj(original, compressed, length=1024 * 1024)
+            handle.flush()
+            os.fsync(handle.fileno())
+            os.replace(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 def load_json(path: str | Path):
@@ -49,11 +99,18 @@ def read_jsonl(path: str | Path) -> list[dict]:
 def write_jsonl(path: str | Path, rows: Iterable[dict]) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    opener = gzip.open if path.suffix == ".gz" else open
     tmp = path.with_name(path.name + ".tmp")
-    with opener(tmp, "wt", encoding="utf-8") as handle:
-        for row in rows:
-            handle.write(json.dumps(row, ensure_ascii=False, allow_nan=False) + "\n")
+    with tmp.open("wb") as raw:
+        # Fixed headers make the same records produce the same physical digest.
+        if path.suffix == ".gz":
+            with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0, compresslevel=6) as handle:
+                for row in rows:
+                    handle.write((json.dumps(row, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8"))
+        else:
+            for row in rows:
+                raw.write((json.dumps(row, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8"))
+        raw.flush()
+        os.fsync(raw.fileno())
     os.replace(tmp, path)
 
 

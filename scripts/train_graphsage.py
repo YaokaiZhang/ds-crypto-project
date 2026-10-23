@@ -3,8 +3,8 @@
 
 The script intentionally uses a compact native PyTorch implementation rather
 than adding PyTorch Geometric as a dependency.  Each JSONL row is one target
-token graph; the center node logit is the prediction.  The test holdout is
-read and scored only after the best validation checkpoint is selected.
+token graph; the center node logit is the prediction. The 90/10 protocol reports
+validation performance after validation checkpoint and threshold selection.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ import torch
 from torch import Tensor, nn
 
 from packages.progress import add_progress_arguments, progress_bar
+from packages.evaluation_protocol import PARTITIONS, evaluation_policy, final_validation_report, normalized_confusion
 
 
 LABEL_TO_INT = {"low_volume_dead": 0, "continued_activity": 1}
@@ -258,6 +259,7 @@ def classification_metrics(
             "true_positive": true_positive,
         },
         "majority_accuracy": max(positive_count, negative_count) / len(labels) if labels else None,
+        **normalized_confusion(true_negative, false_positive, false_negative, true_positive),
     }
 
 
@@ -335,13 +337,16 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     output = Path(args.output).resolve()
     if output.exists() and any(output.iterdir()):
         raise SystemExit(f"output directory is not empty: {output}")
-    output.mkdir(parents=True, exist_ok=True)
     rows = read_jsonl(source)
+    if any(row.get("partition") not in PARTITIONS or row.get("graph_role") != "development" for row in rows):
+        raise ValueError("expected frozen 90/10 train/validation graphs; regenerate legacy splits and graphs into a new output")
     train_rows = [row for row in rows if row.get("graph_role") == "development" and row.get("partition") == "train"]
     validation_rows = [row for row in rows if row.get("graph_role") == "development" and row.get("partition") == "validation"]
-    test_rows = [row for row in rows if row.get("graph_role") == "test_holdout"]
-    if not train_rows or not validation_rows or not test_rows:
-        raise ValueError("expected non-empty train, validation, and test splits")
+    if not train_rows or not validation_rows:
+        raise ValueError("expected non-empty train and validation splits")
+    if any({row['label'] for row in subset} != set(LABEL_TO_INT) for subset in (train_rows, validation_rows)):
+        raise ValueError("train and validation splits must both contain both labels")
+    output.mkdir(parents=True, exist_ok=True)
     mean, std = feature_stats(train_rows)
     mean, std = mean.to(device), std.to(device)
     model = MeanSAGE(len(mean), args.hidden_dim, args.dropout).to(device)
@@ -391,6 +396,7 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
                 "epoch": epoch,
                 "train_loss": total_loss / len(train_rows),
                 "validation_roc_auc": validation["roc_auc"],
+                "validation_accuracy": validation["accuracy"],
                 "validation_average_precision": validation["average_precision"],
                 "validation_balanced_accuracy": validation["balanced_accuracy"],
             }
@@ -423,9 +429,6 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
     validation_metrics, validation_predictions = evaluate(
         model, validation_rows, mean, std, "validation", decision_threshold, device, args.batch_size, progress=progress
     )
-    test_metrics, test_predictions = evaluate(
-        model, test_rows, mean, std, "test_holdout", decision_threshold, device, args.batch_size, progress=progress
-    )
 
     model_state = {key: value.detach().cpu() for key, value in model.state_dict().items()}
     torch.save(
@@ -444,12 +447,14 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         },
         output / "model.pt",
     )
-    predictions = train_predictions + validation_predictions + test_predictions
+    predictions = train_predictions + validation_predictions
     with (output / "predictions.jsonl").open("w", encoding="utf-8") as handle:
         for row in predictions:
             handle.write(json.dumps(row, sort_keys=True, ensure_ascii=True) + "\n")
     metrics = {
-        "manifest_version": "graphsage-0.4",
+        "manifest_version": "graphsage-0.5",
+        "evaluation": evaluation_policy(),
+        "final_report": final_validation_report(validation_metrics),
         "split_name": args.split_name,
         "graphs": str(source),
         "output": str(output),
@@ -485,10 +490,9 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
             "device": str(device),
             "batch_size": args.batch_size,
         },
-        "split_counts": {"train": len(train_rows), "validation": len(validation_rows), "test_holdout": len(test_rows)},
-        "metrics": {"train": train_metrics, "validation": validation_metrics, "test_holdout": test_metrics},
+        "split_counts": {"train": len(train_rows), "validation": len(validation_rows)},
+        "metrics": {"train": train_metrics, "validation": validation_metrics},
         "history": history,
-        "test_use": "scored once after validation checkpoint selection; not used for early stopping or tuning",
     }
     (output / "metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (output / "feature_normalization.json").write_text(

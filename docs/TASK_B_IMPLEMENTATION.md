@@ -1,10 +1,21 @@
 # Task B implementation and usage guide
 
+当前公共阶段以 [统一入口说明](SCAM_PIPELINE.md) 为准：`sources / collect / prepare / train / all / status`。`all` 包含训练并要求 `--run`；本文较早的内部阶段与历史实验记录不改变既有结果。
+
 Date: 2026-10-15. Release status: code and synthetic engineering checks only.
-No real training dataset, formal training run, research metrics or model weights
-are delivered.
+A real Phishing address-only cohort is frozen; complete training data, formal
+training runs, research metrics and model weights remain pending. See the
+[unattended pipeline and storage guide](PHISHING_OFFLINE_PIPELINE.md).
 
 ## 1. Delivered scope
+
+The 2026-10-20 Ponzi revision adds unattended source/cohort/collection/prepare
+stages to `scripts/scam/run_pipeline.py --task ponzi`. Its frozen XBlock/Unica
+cohort contains 247 conflict-free positives and 1,000 deterministic XBlock
+negatives with source-specific historical anchors and bounded descending
+graphs. Training is explicit and uses independent weights. See
+[the Ponzi offline pipeline](PONZI_OFFLINE_PIPELINE.md) for the run order,
+source-defined label admission, recovery and limitations.
 
 Phishing/Ponzi provide source import, ETH collection, normalization, evidence and
 label governance, directed local graphs, independent training/evaluation, model
@@ -41,9 +52,9 @@ flowchart LR
     B --> P[Offline prediction]
 ```
 
-- `packages/chainrisk/`: task protocols, source governance, collection, event
+- `packages/`: task protocols, source governance, collection, event
   parsing, graph/tensor conversion, models and model bundles.
-- `research/task_b/`: configurations, frozen splits, shared training/evaluation,
+- `research/scam/`: configurations, frozen splits, shared training/evaluation,
   tabular baselines and CLI.
 - `checks/`: synthetic fixtures, semantic, numerical and CLI integration checks.
 
@@ -52,6 +63,12 @@ models. Data, supervision and model state are separate, so inference never
 requires a known label.
 
 ## 3. Graphs and supervision
+
+New Phishing snapshots now use the bounded recent view described in
+[PHISHING_OFFLINE_PIPELINE.md](PHISHING_OFFLINE_PIPELINE.md), including per-root
+graph publication, scratch raw deletion and shared in-process concurrency. The
+legacy address-graph defaults below remain applicable to older snapshots and
+other address-task configurations.
 
 Address graphs default to the 30 days preceding cutoff, two hops, fanouts 32/16,
 at most 512 nodes and 4,096 aggregate edges. Original direction is preserved;
@@ -97,11 +114,19 @@ GraphSAGE training code.
 
 Defaults are AdamW, learning rate 0.001, weight decay 0.0001, batch size 32, at
 most 200 epochs and patience 25. Entity and evidence-backed group splits freeze
-80/10/10; insufficient class support stops execution. Scalers fit training data
-only, validation AP selects checkpoints, and validation macro-F1 selects the
-threshold. Neighborhood overlap is reported; common routers do not define scam
+90/10 train/validation (2026-10-20 revision); insufficient class support stops execution. Scalers fit training data
+only. Validation AP alone selects checkpoints and controls early stopping:
+an improvement greater than `min_delta` saves the model and resets patience.
+Stop when patience expires or the epoch limit is reached, then restore the saved
+model. Training loss is reported; validation loss is not computed. Macro-F1
+selects the classification threshold. Training overrides preserve
+the frozen prepared dataset. See [the detailed selection rules](PONZI_OFFLINE_PIPELINE.md#validation-monitoring-and-model-selection).
+Neighborhood overlap is reported; common routers do not define scam
 campaigns. Bundles freeze graph recipes, feature order and relation semantics;
 matching dimensions alone do not establish compatibility.
+Final reports use validation Accuracy and retain Balanced Accuracy, F1, class
+counts, raw confusion counts and row-normalized confusion matrices. Validation
+also selects checkpoints/thresholds, so this is not an independent test estimate.
 
 Tabular baselines use own-feature logistic regression and neighborhood/edge
 summary gradient boosting on the same samples and split. Standard metrics use
@@ -110,13 +135,13 @@ research evaluations has been run.
 
 ## 5. Running and acceptance
 
-Complete commands are in the [Task B README](../research/task_b/README.md). From
+Complete commands are in the [Task B README](../research/scam/README.md). From
 the project root:
 
 ```bash
 uv sync --frozen --python 3.11
 uv run --frozen python -m unittest discover -s checks -v
-uv run --frozen chainrisk-task-b --help
+uv run --frozen chainrisk-scam --help
 ```
 
 JSONL and Parquet are supported. Raw responses, coverage, normalization audits,

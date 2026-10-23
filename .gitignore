@@ -1,25 +1,87 @@
-data
-# uv
+# Local secrets and machine-specific configuration
+.env
+.env.*
+!.env.example
+!.env.*.example
+/local_secrets.py
+/config/*
+!/config/model_split.json
+
+# Local datasets, models and generated reports
+/data/
+/artifacts/
+/reports/
+reference/
+
+# Local test suites (keep files on disk)
+/checks/
+tests/
+
+# Python environments, bytecode and package builds
 .venv/
+venv/
 .python-version
 .uv/
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Test, coverage and analysis caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage/
+coverage.xml
+junit.xml
+.cache/
+
+# Frontend dependencies and generated files
+node_modules/
 .vite/
+dist-ssr/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime state, logs and temporary files
+.runtime/
+logs/
+tmp/
+temp/
+*.log
+*.pid
+*.pid.lock
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Local agent and design-tool state
 .agents/
 .claude/
 .codex/
 .impeccable/
-.runtime
 
-tests
-.env
-logs
-config/*
-!config/
-!config/model_split.json
-__pycache__
-.pytest_cache
+# OS metadata and editor scratch files
 .DS_Store
-build/
-*.egg-info/
-
-reference/
+._*
+Thumbs.db
+Desktop.ini
+.idea/
+*.swp
+*.swo
+*~

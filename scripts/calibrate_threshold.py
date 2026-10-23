@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.train_graphsage import classification_metrics
+from packages.evaluation_protocol import evaluation_policy, final_validation_report
 
 
 VALIDATION_SPLITS = frozenset(("validation",))
@@ -93,25 +94,25 @@ def calibrate(args: argparse.Namespace) -> dict[str, Any]:
     validation_rows = [row for row in rows if row.get("split") in VALIDATION_SPLITS]
     test_rows = [row for row in rows if row.get("split") in TEST_SPLITS]
     validation_labels, validation_scores = labels_and_scores(validation_rows)
-    test_labels, test_scores = labels_and_scores(test_rows)
+    if test_rows:
+        raise ValueError("legacy test predictions require a separately preserved historical evaluation; use 90/10 validation predictions")
     budgets = sorted(set(float(value) for value in args.target_fpr))
     results: list[dict[str, Any]] = []
     for budget in budgets:
         threshold, validation_metrics = choose_threshold(validation_labels, validation_scores, budget)
-        test_metrics = classification_metrics(test_labels, test_scores, threshold)
         results.append(
             {
                 "target_false_positive_rate": budget,
                 "threshold": threshold,
                 "validation": validation_metrics,
-                "test": test_metrics,
+                "final_report": final_validation_report(validation_metrics),
             }
         )
     result = {
-        "manifest_version": "validation-fpr-threshold-calibration-0.1",
+        "manifest_version": "validation-fpr-threshold-calibration-0.2",
+        "evaluation": evaluation_policy(),
         "predictions": str(source),
         "validation_rows": len(validation_rows),
-        "test_rows": len(test_rows),
         "calibration_rule": "choose the validation threshold with maximum continued-activity recall subject to the target FPR; break ties by continued-activity F1",
         "results": results,
     }

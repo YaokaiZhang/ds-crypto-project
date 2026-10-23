@@ -42,7 +42,28 @@
         "Ponzi"
       ],
       "mapping": "1/0 retain source Ponzi/non-Ponzi definition; error is invalid; neither polarity is admitted without time/evidence review",
-      "terms": "Unknown in prior source audit; check before redistribution"
+      "terms": "Unknown in prior source audit; check before redistribution",
+      "local_verification": {
+        "verified_date": "2026-10-20",
+        "report": "docs/PONZI_SOURCE_AUDIT.md",
+        "source_snapshot": "data/scam/ponzi/xblock-unica-recent-v1/sources",
+        "kaggle_version": 1,
+        "readme_release_date": "2018-11-22",
+        "labeling_method": "source authors manually reviewed contract source code; source-defined Ponzi/non-Ponzi labels",
+        "row_counts": {
+          "1": 200,
+          "0": 3590,
+          "error": 3
+        },
+        "timestamp_columns": [],
+        "collection_protocol": "docs/PONZI_OFFLINE_PIPELINE.md; adopted source-defined retrospective supervised experiment",
+        "license_as_reported_by_kaggle": "Unknown",
+        "runnable_config": "research/scam/configs/ponzi_recent.json",
+        "source_observation_anchors": {
+          "xblock_ponzi": "2018-11-22T23:59:59Z",
+          "unica": "2017-05-07T23:59:59Z"
+        }
+      }
     },
     {
       "adapter": "unica",
@@ -78,6 +99,17 @@
       "mapping_file": "token-dict.json: integer ID to address or address to integer ID",
       "mapping": "Task-matching subtype is weak candidate evidence; truthworthy is not automatically a reliable negative; source definition must be reviewed",
       "limitations": "Processed transfer values/time are not assumed raw token units/Unix time; TokenScout Ponzi token role is not automatically an admitted Ponzi contract label",
+      "rug_pull_preparation": {
+        "adopted_date": "2026-10-22",
+        "guide": "docs/RUG_PULL_LABEL_PREPARATION.md",
+        "runner": "scripts/scam/run_pipeline.py --task rug_pull --stage all",
+        "label_policy": "Source-defined retrospective rugpull=1 versus truthworthy=0; other classes excluded",
+        "scope": "Canonical Ethereum Uniswap v2 pools, all quote assets, at the separate 2023-02-28T23:59:59Z source coverage anchor; original WETH-only snapshot retained",
+        "boundary": "Labels and pool metadata only; no transaction collection, graphs or training",
+        "cohort_policy": "Latest user instruction: 1500 metadata-valid positives and all metadata-valid negatives, selected after pool matching with recorded positive replenishment",
+        "labels_sha256": "2a764d15e39b8358cd4e35ab34eee8c30a3b59761cd9e2e6505d506920376ee0",
+        "mapping_sha256": "97e1ab04676b24158defdc4a0fcfe0d72291392e6de93764a57bdb2dc7e42d4e"
+      },
       "terms": "Not established by public data listing; verify author terms"
     },
     {
@@ -129,13 +161,15 @@
         "label_status",
         "role",
         "audit_decision",
-        "valid_from",
-        "valid_to",
-        "label_available_at",
         "evidence_ref"
       ],
       "mapping": "Explicit reviewed decision, compatible task role, polarity and historical validity are required",
-      "terms": "Provided by the reviewer with provenance"
+      "terms": "Provided by the reviewer with provenance",
+      "optional_time_columns": [
+        "valid_from",
+        "valid_to",
+        "label_available_at"
+      ]
     },
     {
       "adapter": "honeypot_is",
@@ -169,16 +203,17 @@
         "mapped_label",
         "label_status",
         "audit_decision",
-        "valid_from",
-        "valid_to",
-        "label_available_at",
-        "incident_onset",
         "incident_tx",
         "controller_evidence_ref",
         "evidence_ref"
       ],
       "mapping": "Reviewed malicious v2 liquidity withdrawal with incident attribution; bounded task-specific negatives; token/pool/time admission required",
-      "terms": "Reviewer-supplied provenance and source terms"
+      "terms": "Reviewer-supplied provenance and source terms",
+      "optional_time_columns": [
+        "valid_from",
+        "valid_to",
+        "label_available_at"
+      ]
     }
   ],
   "collector": {

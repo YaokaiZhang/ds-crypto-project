@@ -10,6 +10,7 @@ from collections import Counter
 import copy
 import json
 import math
+from itertools import combinations
 from pathlib import Path
 import random
 import shutil
@@ -19,7 +20,7 @@ from typing import Any, Sequence
 from .splitting import PARTITIONS, _unix, assert_partition_isolation, experiment_record, task_name
 from packages.tasks import get_task
 from packages.progress import PROGRESS_MODES, progress_bar
-
+from packages.evaluation_protocol import evaluation_policy, final_validation_report, normalized_confusion
 
 def validate_config(config: dict[str, Any]) -> dict[str, Any]:
     result = copy.deepcopy(config)
@@ -104,6 +105,8 @@ def merge_dataset(
             excluded[str(canonical.get("label_status", "missing_label_status"))] += 1
             continue
         split = split_index.get(sample)
+        if split and split.get("partition") == "test":
+            raise ValueError("legacy_test_partition_requires_new_90_10_preparation; do not silently discard or reassign frozen rows")
         if split is None or split.get("partition") not in PARTITIONS:
             raise ValueError(f"eligible sample has no frozen partition: {sample}")
         if split.get("experiment_mode", config["experiment_mode"]) != config["experiment_mode"]:
@@ -152,6 +155,9 @@ def merge_dataset(
             raise ValueError("training graphs require an explicit graph builder/sampling recipe")
         if recipe["builder"] != get_task(config["task_id"]).graph_family:
             raise ValueError("graph builder differs from task specification")
+        for key, value in config.get("graph", {}).items():
+            if key in recipe["sampling"] and value != recipe["sampling"][key]:
+                raise ValueError("graph recipe differs from training config; use the dataset's frozen training_config.json")
         if graph_recipe is not None and recipe != graph_recipe:
             raise ValueError("graph builder/sampling recipe differs within experiment")
         graph_recipe = copy.deepcopy(recipe)
@@ -170,7 +176,8 @@ def merge_dataset(
         "partition_class_counts": partition_counts,
         "negative_meaning": "frozen unlabeled background; not verified benign" if config["experiment_mode"] in {"known_positive_vs_unlabeled", "nnpu"} else "task-specific admitted negative",
         "leakage_checks": ["entity/group partition isolation", "graph cutoff/chain/target join", "compatible feature and relation schemas", "graph quality", "train label availability when configured"],
-        "neighborhood_overlap_counts": {f"{left}_{right}": len(node_sets[left] & node_sets[right]) for left, right in (("train", "validation"), ("train", "test"), ("validation", "test"))},
+        "evaluation": evaluation_policy(),
+        "neighborhood_overlap_counts": {f"{left}_{right}": len(node_sets[left] & node_sets[right]) for left, right in combinations(PARTITIONS, 2)},
         "heldout_targets_in_train_neighborhood": len(heldout_targets & node_sets["train"]),
         "message_passing": "disconnected ego graphs; no persistent address embeddings or label propagation",
     }
@@ -250,6 +257,7 @@ def metrics(labels: Sequence[int], scores: Sequence[float], threshold: float = 0
         "precision_at_k": sum(labels[index] for index in ranked) / len(ranked),
         "k": len(ranked), "precision_at_k_tie_policy": "stable sample order",
         "threshold": threshold, "confusion_matrix": {"tn": tn, "fp": fp, "fn": fn, "tp": tp},
+        **normalized_confusion(tn, fp, fn, tp),
     }
 
 
@@ -268,7 +276,7 @@ def select_threshold(labels: Sequence[int], scores: Sequence[float]) -> float:
 
 def _score(model: Any, rows: Sequence[dict[str, Any]], scaler: dict[str, Any], device: Any, batch_size: int,
            *, progress: str = "auto", description: str = "Scoring", position: int = 0,
-           leave: bool = True) -> tuple[list[int], list[float]]:
+           leave: bool = True):
     import torch
     from packages.graph import batch_graph_samples
     labels: list[int] = []
@@ -349,7 +357,9 @@ def fit_tabular_baselines(rows: Sequence[dict[str, Any]], config: dict[str, Any]
                 model.fit(arrays["train"], labels["train"])
             scores = {partition: model.predict_proba(array)[:, 1].tolist() for partition, array in arrays.items()}
             threshold = select_threshold(labels["validation"], scores["validation"])
-            results[name] = {"threshold": threshold, "metrics": {partition: metrics(labels[partition], scores[partition], threshold, config["precision_at_k"]) for partition in PARTITIONS}}
+            reports = {partition: metrics(labels[partition], scores[partition], threshold, config["precision_at_k"]) for partition in PARTITIONS}
+            results[name] = {"threshold": threshold, "metrics": reports,
+                             "evaluation": evaluation_policy(), "final_report": final_validation_report(reports["validation"])}
             joblib.dump(model, output / f"{name}.joblib")
     return results
 
@@ -357,7 +367,7 @@ def fit_tabular_baselines(rows: Sequence[dict[str, Any]], config: dict[str, Any]
 def evaluate_bundle(
     bundle_path: str | Path, graphs: Sequence[dict[str, Any]],
     supervision: Sequence[dict[str, Any]], splits: Sequence[dict[str, Any]],
-    config: dict[str, Any] | None = None, partition: str = "test",
+    config: dict[str, Any] | None = None, partition: str = "validation",
     out: str | Path | None = None, *, dry_run: bool = False,
     device: str | None = None,
     progress: str | None = None,
@@ -365,7 +375,7 @@ def evaluate_bundle(
     """Evaluate a frozen bundle without fitting, threshold selection or labels in prediction."""
     from packages.bundle import load_model_bundle, predict_bundle
     if partition not in {*PARTITIONS, "all"}:
-        raise ValueError("evaluation partition must be train, validation, test or all")
+        raise ValueError("evaluation partition must be train, validation or all")
     manifest = json.loads((Path(bundle_path) / "manifest.json").read_text(encoding="utf-8"))
     frozen = manifest.get("training_manifest", {}).get("config", {})
     options = copy.deepcopy(config or frozen or {"task_id": manifest["task_id"]})
@@ -408,11 +418,14 @@ def evaluate_bundle(
             "label_status": row["supervision"]["label_status"],
             "partition": row["supervision"]["partition"]})
     summary = {"status": "evaluated_frozen_model", "task_id": effective["task_id"],
+        "evaluation": evaluation_policy(),
         "partition": partition, "model_version": bundle.manifest["model_version"],
         "dataset": dataset_manifest, "score_meaning": bundle.manifest["score_meaning"],
         "metrics": metrics(labels, scores, bundle.manifest["threshold"], effective["precision_at_k"]),
         "fitting_performed": False, "threshold_selection_performed": False,
         "predictions": records}
+    if partition == "validation":
+        summary["final_report"] = final_validation_report(summary["metrics"])
     if out is not None:
         destination = Path(out)
         destination.mkdir(parents=True, exist_ok=True)
@@ -467,6 +480,7 @@ def train(
         return {"status": "data_only", "task_id": config["task_id"], "training_supported": False, "config": config}
     rows, dataset_manifest = merge_dataset(graphs, supervision, splits, config)
     summary: dict[str, Any] = {"status": "validated" if dry_run else "trained", "config": config,
+        "evaluation": evaluation_policy(),
         "dataset": dataset_manifest, "graph_recipe": dataset_manifest["graph_recipe"]}
     if dry_run:
         return summary
@@ -523,13 +537,17 @@ def train(
             labels, scores = _score(model, partitions["validation"], scaler, device, config["batch_size"],
                                    progress=config["progress"], description="Validation", position=1, leave=False)
             report = metrics(labels, scores, k=config["precision_at_k"])
-            history.append({"epoch": epoch, "train_loss": total_loss / seen, "validation_average_precision": report["average_precision"]})
+            history.append({"epoch": epoch, "train_loss": total_loss / seen,
+                            "validation_accuracy": report["accuracy"],
+                            "validation_balanced_accuracy": report["balanced_accuracy"],
+                            "validation_average_precision": report["average_precision"]})
             if report["average_precision"] > best_ap + config["min_delta"]:
                 best_state, best_ap, best_epoch, stale = copy.deepcopy(model.state_dict()), report["average_precision"], epoch, 0
             else:
                 stale += 1
-            epochs.set_postfix(train_loss=total_loss / seen, val_AP=report["average_precision"],
-                               best_AP=best_ap, patience=f"{stale}/{config['patience']}", refresh=False)
+            epochs.set_postfix(train_loss=f"{total_loss / seen:.6f}",
+                               val_AP=f"{report['average_precision']:.6f}",
+                               best_AP=f"{best_ap:.6f}", patience=f"{stale}/{config['patience']}", refresh=False)
             epochs.update(1)
             if stale >= config["patience"]:
                 epochs.set_description(f"{config['task_id']} early stop")
@@ -546,7 +564,9 @@ def train(
                                    progress=config["progress"], description=f"Evaluate {partition}")
         reports[partition] = report
         predictions.extend(records)
-    summary.update(history=history, best_epoch=best_epoch, best_validation_average_precision=best_ap, threshold=threshold, pos_weight=pos_weight, metrics=reports, calibration_status="uncalibrated", test_use="scored only after checkpoint and threshold selection")
+    summary.update(history=history, best_epoch=best_epoch, best_validation_average_precision=best_ap,
+                   threshold=threshold, pos_weight=pos_weight, metrics=reports, calibration_status="uncalibrated",
+                   final_report=final_validation_report(reports["validation"]))
     if config["fit_tabular_baselines"]:
         summary["tabular_baselines"] = fit_tabular_baselines(rows, config, output)
     export_model_bundle(output / "bundle", model, config["model"], scaler, config["task_id"], threshold, summary, calibration_status="uncalibrated")

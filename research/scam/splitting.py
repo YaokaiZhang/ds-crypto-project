@@ -15,8 +15,7 @@ from typing import Any, Iterable, Sequence
 
 from packages.tasks import canonical_task
 from packages.token import TOKEN_TASKS
-
-PARTITIONS = ("train", "validation", "test")
+from packages.evaluation_protocol import PARTITIONS, DEFAULT_RATIOS, evaluation_policy
 
 
 def task_name(value: str) -> str:
@@ -117,7 +116,7 @@ def assert_partition_isolation(records: Iterable[dict[str, Any]]) -> None:
 
 def split_records(
     supervision: Sequence[dict[str, Any]],
-    ratios: Sequence[float] = (0.8, 0.1, 0.1),
+    ratios: Sequence[float] = DEFAULT_RATIOS,
     seed: int = 20261008,
     mode: str = "supervised",
     training_as_of: int | None = None,
@@ -128,8 +127,8 @@ def split_records(
     make exact ratios impossible; achieved ratios are reported, and inadequate
     per-partition class support fails rather than searching another seed.
     """
-    if len(ratios) != 3 or any(r <= 0 for r in ratios) or abs(sum(ratios) - 1) > 1e-8:
-        raise ValueError("ratios must contain three positive values summing to one")
+    if len(ratios) != len(PARTITIONS) or any(not math.isfinite(r) or r <= 0 for r in ratios) or abs(sum(ratios) - 1) > 1e-8:
+        raise ValueError("ratios must contain two positive values summing to one (train/validation)")
     rows = [experiment_record(row, mode) for row in supervision]
     if len({str(row["sample_id"]) for row in rows}) != len(rows):
         raise ValueError("duplicate sample_id in supervision")
@@ -144,7 +143,7 @@ def split_records(
         row["partition"] = None
     counts = Counter(int(row["observed_target"]) for row in selected)
     if set(counts) != {0, 1} or any(counts[label] * min(ratios) < 1 for label in (0, 1)):
-        raise ValueError("insufficient two-class support for the frozen 80/10/10 protocol")
+        raise ValueError("insufficient two-class support for the frozen train/validation protocol")
     parent = list(range(len(selected)))
 
     def find(index: int) -> int:
@@ -183,8 +182,8 @@ def split_records(
     for index, row in enumerate(selected):
         components[find(index)].append(row)
     group_rows = list(components.values())
-    if any(sum(any(row["observed_target"] == label for row in group) for group in group_rows) < 3 for label in (0, 1)):
-        raise ValueError("each class requires at least three independent entity/groups")
+    if any(sum(any(row["observed_target"] == label for row in group) for group in group_rows) < len(PARTITIONS) for label in (0, 1)):
+        raise ValueError("each class requires at least two independent entity/groups")
     # Canonical order makes permutation of input rows harmless; a seeded
     # tie-breaker is applied only to groups of equal size.
     group_rows.sort(key=lambda group: min(str(row["sample_id"]) for row in group))
@@ -220,7 +219,8 @@ def split_records(
                 raise ValueError(f"training label unavailable at training_as_of: {row['sample_id']}")
     assert_partition_isolation(rows)
     manifest = {
-        "schema_version": "scam-split-1", "task_id": next(iter(tasks)),
+        "schema_version": "scam-split-2", "task_id": next(iter(tasks)),
+        "evaluation": evaluation_policy(),
         "seed": seed, "mode": mode, "ratios": dict(zip(PARTITIONS, ratios)),
         "training_as_of": training_as_of, "background_cohort_id": next(iter(cohort_ids), None),
         "eligible_samples": len(selected), "excluded_samples": len(rows) - len(selected),

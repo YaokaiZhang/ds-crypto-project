@@ -150,6 +150,22 @@ time range even when addresses coincide.
 
 ### 5.1 Experiment archives
 
+The implemented Scam offline paths now follow
+[PHISHING_OFFLINE_PIPELINE.md](PHISHING_OFFLINE_PIPELINE.md):
+`data/shared/` for reusable address master pools, compatible compact observations
+and legacy provider requests, `data/scam/<task>/<snapshot>/` for
+frozen task datasets and `artifacts/scam/<task>/<snapshot>/<run>/` for models.
+The recent Phishing profile freezes `background_ref.json` instead of treating
+cohort exports as a new master pool. Observation reuse is keyed by exact address,
+cutoff and query recipe; task labels and token/pool-specific inputs are not
+implicitly interchangeable. See the pipeline guide for checksums and recovery.
+Normalized recent replay transactions are stored once as shared `events.jsonl.gz`
+and pinned by task sample manifests. The offline compaction tool migrates legacy
+duplicates with a resumable journal and lossless byte verification; archive the
+referenced shared objects alongside task snapshots. Graph and model identities
+are independent of this encoding change.
+The generic archive sketch below remains a design reference.
+
 Preserve `reports/model_comparison_*.md` metrics. Separate research runs from
 online assessments:
 

@@ -5,14 +5,16 @@ import hashlib
 import json
 import os
 import time
+import threading
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit, parse_qsl
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from typing import Any, Iterable
 
 from .collection import CollectionError, EtherscanClient, _now, _safe_error
-from .io import save_json, write_records
+from .io import atomic_bytes, save_json, write_records
+from .provider_access import ethereum_rpc_url
 from .token import TOKEN_TASKS, UNISWAP_V2_FACTORY, token_scope
 from .transactions import address, integer
 
@@ -24,10 +26,25 @@ class SnapshotClient:
         self.transport = self.settings.get("transport")
         self.requests = 0
         self._last_request = 0.0
+        self._request_lock = threading.Lock()
+        self._cache_locks = {}
 
     def request(self, source: str, params: dict[str, Any]) -> dict[str, Any]:
+        key = json.dumps([source, params], sort_keys=True)
+        with self._request_lock:
+            lock = self._cache_locks.setdefault(key, threading.Lock())
+        with lock:
+            return self._request(source, params)
+
+    def _request(self, source, params):
         digest = hashlib.sha256(json.dumps({"source": source, "params": params}, sort_keys=True).encode()).hexdigest()
-        path = self.out / "raw_requests" / f"{digest}.json"
+        if self.settings.get("cancel_event") is not None and self.settings["cancel_event"].is_set():
+            raise InterruptedError("snapshot_request_cancelled")
+        cache_root = self.out
+        if (source == "ethereum_rpc" and self.settings.get("rpc_cache_dir")
+                and not self.transport and not self.settings.get("fixtures")):
+            cache_root = Path(self.settings["rpc_cache_dir"])
+        path = cache_root / "raw_requests" / f"{digest}.json"
         if path.exists():
             bundle = json.loads(path.read_text())
             if (bundle.get("source") != source or bundle.get("request") != params
@@ -39,20 +56,25 @@ class SnapshotClient:
             raise CollectionError("network_disabled_use_allow_network_or_fixtures")
         if self.requests >= int(self.settings.get("max_requests", 10000)):
             raise CollectionError("request_budget_exhausted")
-        secret = os.environ.get("ETHEREUM_RPC_URL", "")
+        secret = self.settings.get("rpc_url") or ethereum_rpc_url()
         api_key = os.environ.get("HONEYPOT_API_KEY", "")
+        parts = urlsplit(secret)
+        private = [secret, api_key, *[v for _, v in parse_qsl(parts.query)], parts.path.rsplit("/", 1)[-1]]
+        private = [v for v in private if len(v) > 8]
         payload = None
         for attempt in range(int(self.settings.get("retries", 3)) + 1):
-            if self.requests >= int(self.settings.get("max_requests", 10000)):
-                raise CollectionError("request_budget_exhausted")
-            self.requests += 1
             try:
-                if not self.transport and not fixtures:
-                    rate = min(3.0, max(.01, float(self.settings.get("rate_limit_rps", 1))))
-                    remaining = 1 / rate - (time.monotonic() - self._last_request)
-                    if remaining > 0:
-                        time.sleep(remaining)
-                    self._last_request = time.monotonic()
+                # One shared start-rate/request budget across concurrent samples.
+                with self._request_lock:
+                    if self.requests >= int(self.settings.get("max_requests", 10000)):
+                        raise CollectionError("request_budget_exhausted")
+                    self.requests += 1
+                    if not self.transport and not fixtures:
+                        rate = min(3.0, max(.01, float(self.settings.get("rate_limit_rps", 1))))
+                        remaining = 1 / rate - (time.monotonic() - self._last_request)
+                        if remaining > 0:
+                            time.sleep(remaining)
+                        self._last_request = time.monotonic()
                 if self.transport:
                     payload = self.transport(source, dict(params))
                 elif fixtures:
@@ -69,27 +91,41 @@ class SnapshotClient:
                     with urlopen(request, timeout=float(self.settings.get("timeout_seconds", 30))) as response:
                         payload = json.load(response)
                 else:
-                    headers = {"Accept": "application/json"}
+                    headers = {"Accept": "application/json", "User-Agent": "chainrisk-research/0.1"}
                     if api_key:
                         headers["X-API-KEY"] = api_key
                     query = {key: value for key, value in params.items() if key != "sample_id"}
                     request = Request("https://api.honeypot.is/v2/IsHoneypot?" + urlencode(query), headers=headers)
                     with urlopen(request, timeout=float(self.settings.get("timeout_seconds", 30))) as response:
                         payload = json.load(response)
-                if not isinstance(payload, dict) or payload.get("error"):
+                if not isinstance(payload, dict):
                     raise CollectionError("invalid_or_failed_snapshot_response")
+                if payload.get("error"):
+                    raise CollectionError("invalid_or_failed_snapshot_response:" +
+                                          _safe_error(payload["error"], private))
                 if source == "ethereum_rpc" and payload.get("result") is None:
                     raise CollectionError("missing_rpc_result")
                 break
-            except (HTTPError, URLError, TimeoutError, OSError) as exc:
+            except HTTPError as exc:
+                if exc.code in (401, 403, 429):
+                    detail = _safe_error(exc.read(2048).decode("utf-8", errors="replace"), private)
+                    save_json(self.out / "provider_error.json", {"source": source, "http_status": exc.code,
+                              "checked_at": _now(), "content_type": exc.headers.get("Content-Type"),
+                              "body_excerpt": detail})
+                    raise CollectionError(f"HTTP Error {exc.code}: provider access/quota failure; see provider_error.json") from None
                 if attempt == int(self.settings.get("retries", 3)):
-                    raise CollectionError(_safe_error(exc, [secret, api_key, self.settings.get("rpc_url", "")])) from None
+                    raise CollectionError(_safe_error(exc, private)) from None
+                if not self.transport and not fixtures:
+                    time.sleep(min(4, .5 * 2 ** attempt))
+            except (URLError, TimeoutError, OSError) as exc:
+                if attempt == int(self.settings.get("retries", 3)):
+                    raise CollectionError(_safe_error(exc, private)) from None
                 if not self.transport and not fixtures:
                     time.sleep(min(4, .5 * 2 ** attempt))
         bundle = {"source": source, "request": params, "retrieved_at": _now(),
                   "checked_at": int(time.time()), "response": payload,
                   "response_sha256": self.checksum(payload)}
-        save_json(path, bundle)
+        atomic_bytes(path, (json.dumps(bundle, ensure_ascii=False, indent=2) + "\n").encode())
         return {**bundle, "evidence_ref": str(path.resolve())}
 
     @staticmethod
@@ -98,7 +134,8 @@ class SnapshotClient:
 
 
 def verify_token_targets(targets: Iterable[dict[str, Any]], out: str | Path,
-                         settings: dict[str, Any] | None = None, dry_run: bool = False) -> dict[str, Any]:
+                         settings: dict[str, Any] | None = None, dry_run: bool = False, *,
+                         client: SnapshotClient | None = None) -> dict[str, Any]:
     """Verify supplied pools at cutoff using pair getters AND factory getPair.
 
     Requires historical eth_call support. Cutoff block can be supplied or resolved
@@ -114,9 +151,15 @@ def verify_token_targets(targets: Iterable[dict[str, Any]], out: str | Path,
             raise ValueError("verification_requires_token_cutoff_and_selected_pools")
     if dry_run:
         return {"status": "planned", "target_count": len(targets), "network_performed": False}
-    client = SnapshotClient(out, settings)
+    client = client or (settings or {}).get("_client") or SnapshotClient(out, settings)
     def rpc(method, params):
-        return client.request("ethereum_rpc", {"method": method, "params": params})
+        observer = (settings or {}).get("on_progress")
+        if observer:
+            observer({"phase": "query", "query": {"action": method}})
+        result = client.request("ethereum_rpc", {"method": method, "params": params})
+        if observer:
+            observer({"phase": "received", "query": {"action": method}})
+        return result
     if integer(rpc("eth_chainId", [])["response"]["result"]) != 1:
         raise CollectionError("ethereum_mainnet_only")
     verified = []

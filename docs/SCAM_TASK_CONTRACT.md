@@ -1,6 +1,6 @@
 # Classic Scam Screening Task Contract
 
-Version: scam-task-contract-0.3. Revised: 2026-10-15.
+Version: scam-task-contract-0.4. Revised: 2026-10-15.
 Status: data pipelines and offline training code implemented for all four tasks. Synthetic engineering checks only; no real-data
 training, weights, performance claims, simulation, or services.
 
@@ -11,6 +11,24 @@ change Task A's token outcome, selected-pool scope, 7-day observation window,
 [TrxLLM review](TRXLLM_REFERENCE_REVIEW.md) for evidence and rationale.
 
 ## 1. Tasks, entities, and permissible claims
+
+2026-10-22 Rug Pull source-label preparation exception: the user adopted
+TokenScout rugpull=1 versus truthworthy=0 for a separately identified
+retrospective source-defined cohort. Its labels can be cleaned, selected and
+matched to verified canonical v2 pools of any quote asset without independently
+reconstructing each incident or controller. Unknown incident/validity/availability
+times remain null; the source coverage anchor is only a pool-state observation
+bound. This does not rename these labels as verified withdrawal incidents or
+alter the generic rug_incidents admission adapter. all/evidence ends at label
+quality and pool verification. The same-day collection extension permits explicit
+plan/collect/build-graphs/graphs stages using the already verified cohort and
+existing bounded token recipe, with a process-specific Key and optional separate
+quota ledger. The 2026-10-23 extension adds offline prepare-training using the
+explicit TokenScout source-defined admission policy. It preserves unknown times
+and does not weaken default incident-evidence admission. Use the existing grouped
+90/10 split and trainer; fitting remains a separate explicit command. See
+[training preparation](RUG_PULL_TRAINING_PIPELINE.md),
+[preparation](RUG_PULL_LABEL_PREPARATION.md) and [collection](RUG_PULL_COLLECTION_PIPELINE.md).
 
 | Task id | Target | Positive meaning | Not implied |
 |---|---|---|---|
@@ -63,6 +81,43 @@ known-positive-versus-unlabeled experiment. Its nominal FPR and precision are
 not population estimates on independently verified benign entities.
 
 ## 3. Time and graph views
+
+The 2026-10-20 Ponzi revision adopts a named retrospective source-defined
+supervised cohort: all deduplicated nonconflicting XBlock/Unica positives
+(247 roots) and 1,000 deterministic XBlock negatives. It admits source-reviewed
+contract labels for this benchmark while preserving unknown per-contract
+validity and label-availability times. This is an explicit historical benchmark
+exception to unresolved per-contract time admission below, not an online or
+early-warning label claim. User-confirmed source-date UTC end-of-day anchors
+are 2018-11-22 for XBlock and 2017-05-07 for Unica; duplicate positives use
+XBlock. Each graph and its neighbors use the root's own anchor. The bounded
+descending `scam-recent-egonet-2.0` recipe, storage and optional audited failure
+exclusions follow the Phishing implementation. See
+[the Ponzi pipeline contract](PONZI_OFFLINE_PIPELINE.md). Cohort labels never
+become graph features, and negative labels remain task/source specific.
+
+The 2026-10-15 Phishing bounded-recent revision is specified in
+[PHISHING_OFFLINE_PIPELINE.md](PHISHING_OFFLINE_PIPELINE.md). New snapshots use
+`scam-recent-egonet-2.0`: descending cutoff-bounded event samples, 32/16 recent
+counterparties, equal reference-background/Forta roots, per-root graph publication
+and deletion of scratch raw responses after compact event/graph publication.
+Coverage completeness means success of the frozen bounded queries; it does not
+mean complete lifetime or whole-window history. Retained normalized events and
+source/response hashes support graph replay, but not re-parsing deleted original
+responses. This is an explicit exception to retaining full raw source data below.
+Labels remain P/U and the retrospective benchmark gains no forecasting claim.
+Legacy address snapshots continue to use their frozen original graph view.
+Background master pools and compatible task-neutral compact observations are
+stored under `data/shared/`; task snapshots reference the immutable master pool
+and preserve their own selections, labels, graphs and splits. Reuse requires
+matching address, cutoff timestamp/block, provider origin and exact query recipe;
+it does not establish benign labels across tasks. The recent Phishing pipeline
+integrates this store; other collectors require an explicit compatible adapter.
+The 2026-10-16 storage revision keeps normalized events once as shared gzip,
+with task manifests pinning the shared checksum instead of duplicate event files.
+An explicit offline journaled migration verifies decompressed byte identity
+before deleting legacy copies. Graphs, labels, admission and sampling do not
+change; new task snapshots require their referenced shared replay dependencies.
 
 The 2026-10-15 token input revision is specified in
 [TOKEN_SCAM_TRAINING_PIPELINE.md](TOKEN_SCAM_TRAINING_PIPELINE.md).
@@ -130,8 +185,8 @@ Insufficient or ambiguous execution evidence remains uncertain.
 
 ## 5. Splitting, evaluation, and leakage gates
 
-Freeze a per-task entity/group split before selecting models. The initial
-offline protocol uses 80/10/10 train/validation/test where class and group
+Freeze a per-task entity/group split before selecting models. The 2026-10-20
+offline protocol uses 90/10 train/validation, with no test set, where class and group
 support permit; do not split transactions of the same target across sets.
 Group repeated snapshots, duplicated contracts, established campaigns and
 strong near-duplicates. If support is inadequate, pre-register a different
@@ -141,8 +196,14 @@ splits until favorable metrics appear.
 For temporally resolved data, additionally evaluate a later cohort with
 models fitted only to labels available at training-as-of. Prospective shadow
 validation is required before making broad live generalization claims.
-Fit transformations on train only; thresholds/calibration on validation only;
-lock test for final evaluation. Deduplicate across data sources before split.
+Fit transformations on train only; thresholds/calibration on validation only.
+Report validation Accuracy as the primary final metric, with Balanced Accuracy,
+raw confusion counts and a confusion matrix normalized over each actual-label
+row. Validation also selects checkpoints and thresholds, so the report is not
+an independent test estimate. Do not manufacture 1:1 support by discarding
+eligible background rows. Deduplicate across data sources before split.
+Historical 80/10/10 results are preserved; new trainers require new 90/10 splits
+and refuse legacy test partitions rather than silently merging or dropping them.
 
 Compare rules, tabular/own-feature baselines, neighborhood-summary baselines,
 and GraphSAGE on identical eligible samples and cutoffs. Report per-task
@@ -159,6 +220,24 @@ supervised training target in another. Record permitted common-neighbor
 overlap and run sensitivity checks where it may dominate results.
 
 ## 6. Collection, training, and serving lifecycle
+
+The 2026-10-20 AP-only restoration uses validation AP alone for checkpoint
+selection and early stopping. An increase greater than `min_delta` saves the
+model and resets patience. Stop when patience expires or the epoch limit is
+reached, then restore that saved model. Training loss is reported; validation
+loss is not computed. Macro-F1 selects the classification threshold. Frozen
+cohort/graph/split artifacts and the original retained run are unchanged;
+validation remains reused for model selection. See
+[the training controls](PONZI_OFFLINE_PIPELINE.md#validation-monitoring-and-model-selection).
+
+The 2026-10-20 Phishing failure-selection revision permits explicit
+`--drop-failed` preparation from the remaining published bounded-recent roots.
+Freeze known sample failures in a checksum-pinned ledger, preserve original
+collection/failure evidence and scratch, and do not replace roots or infer
+labels/graphs for them. Never drop unattempted targets, authentication/quota
+errors or corrupt inputs. The all-stage runner exhausts recoverable retries
+before applying this policy. Collection completeness distinguishes accounted
+outcomes from successful downloads. Other graph/label/split checks still apply.
 
 Incremental chain data may support inference, EDA and drift analysis before
 labels exist. Supervised retraining consumes only frozen, quality-approved,

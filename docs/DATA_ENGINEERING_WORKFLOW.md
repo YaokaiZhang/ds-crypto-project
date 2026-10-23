@@ -58,7 +58,7 @@ Keep these products separate:
 - `outcomes`: primary and sensitivity labels plus volume evidence;
 - `censoring`: incomplete or unreliable retrieval reasons;
 - `candidates` and `sampling`: label-blind selection metadata and weights;
-- `splits`: general 80/10/10 token-level partitions and overlap groups;
+- `splits`: general 90/10 train/validation token-level partitions and overlap groups;
 - `features`: cutoff-bounded token and market features;
 - `feature_audit`: raw-event and boundary-exclusion counts used for leakage
   checks, kept out of model-facing features;
@@ -141,7 +141,7 @@ Before modelling, the pipeline must reproduce:
 - primary volume totals and labels from positive historical `amountUSD` values;
 - explicit censoring reasons rather than inferred negative labels;
 - selection probabilities, cohort roles, and sampling weights;
-- 80/10/10 split assignments stratified by label and launch period, with
+- 90/10 train/validation assignments stratified by label and launch period, with
   overlap exclusions or group-preserving adjustments;
 - no post-cutoff event, outcome, or market data in feature tables;
 - zero duplicate event keys and explicit boundary counts in

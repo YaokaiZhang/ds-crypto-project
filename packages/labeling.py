@@ -91,7 +91,7 @@ def _base(task: str, entity: Any, raw_label: Any, source: str, row: int, checksu
     return {"task_id": task, "entity_id": address(entity), "source_label": str(raw_label),
             "mapped_label": None, "label_status": "temporally_unresolved", "role": "unknown",
             "valid_from": None, "valid_to": None, "label_available_at": None,
-            "incident_onset": None, "evidence_ref": None, "source_id": source,
+            "evidence_ref": None, "source_id": source,
             "label_version": "scam-labels-0.1", "audit_decision": "pending_review",
             "evidence_strength": "source_label", "source_row": row, "source_sha256": checksum}
 
@@ -233,7 +233,7 @@ def _map_rug_incident(row: dict[str, Any], task: str, mapping: dict[str, str]) -
                    mechanism=row.get("mechanism"), label_version="rug-incidents-v2-1.0")
     if str(row.get("chain_id")) != "1" or row.get("mechanism") != "malicious_liquidity_withdrawal_v2":
         changes.update(label_status="invalid", audit_decision="outside_task_scope")
-    if changes["mapped_label"] == 1 and (not row.get("incident_tx") or not row.get("controller_evidence_ref") or not row.get("incident_onset")):
+    if changes["mapped_label"] == 1 and (not row.get("incident_tx") or not row.get("controller_evidence_ref")):
         changes.update(label_status="temporally_unresolved", audit_decision="missing_incident_attribution")
     return changes
 
@@ -304,7 +304,7 @@ def import_labels(source: str, path: str | Path, task: str,
         record.update(adapter.mapper(lower, task, token_mapping))
         record["evidence_ref"] = record.get("evidence_ref") or f"{path.resolve()}#row={number}"
         try:
-            for key in ("valid_from", "valid_to", "label_available_at", "incident_onset"):
+            for key in ("valid_from", "valid_to", "label_available_at"):
                 record[key] = _time(record.get(key) if source == "honeypot_is" else lower.get(key, record.get(key)))
             if task in TOKEN_TASKS:
                 record["pool_addresses"] = _pool_addresses(record.get("pool_addresses", lower.get("pool_addresses")))
@@ -318,10 +318,32 @@ def import_labels(source: str, path: str | Path, task: str,
     return result
 
 
+TOKENSCOUT_RETROSPECTIVE_POLICY = "tokenscout-rug-pull-source-adopted-1"
+
+
+def _tokenscout_retrospective(record, task, policy):
+    """Narrow opt-in for the adopted source benchmark, never incident evidence."""
+    checksum = str(record.get("source_sha256") or "")
+    return (policy == TOKENSCOUT_RETROSPECTIVE_POLICY and task == "rug_pull"
+        and record.get("source_id") == "tokenscout"
+        and record.get("label_version") == TOKENSCOUT_RETROSPECTIVE_POLICY
+        and record.get("audit_basis") == "user_adopted_source_defined_retrospective_experiment"
+        and record.get("independent_mechanism_validation") is False
+        and record.get("source_label") == ("rugpull" if record.get("mapped_label") == 1 else "truthworthy")
+        and len(checksum) == 64 and all(c in "0123456789abcdef" for c in checksum)
+        and bool(record.get("evidence_ref"))
+        and all(record.get(k) is None for k in ("valid_from", "valid_to", "label_available_at",
+            "incident_onset", "incident_tx", "controller_evidence_ref")))
+
+
 def reconcile_labels(records: Iterable[dict[str, Any]], targets: Iterable[dict[str, Any]],
-                     training_as_of: Any = None) -> list[dict[str, Any]]:
+                     training_as_of: Any = None, *, source_label_policy: str | None = None) -> list[dict[str, Any]]:
     """Admit reviewed labels for a specific root, historical cutoff and role."""
     training_time = _time(training_as_of)
+    if source_label_policy not in (None, TOKENSCOUT_RETROSPECTIVE_POLICY):
+        raise ValueError("unsupported_source_label_admission_policy")
+    if source_label_policy and training_time is not None:
+        raise ValueError("retrospective_source_policy_has_no_label_availability_time")
     by_entity: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for record in records:
         by_entity.setdefault((_task(record.get("task_id")), str(record.get("entity_id") or "").lower()), []).append(record)
@@ -345,11 +367,11 @@ def reconcile_labels(records: Iterable[dict[str, Any]], targets: Iterable[dict[s
                  "cohort_id": target.get("cohort_id"), "cutoff": cutoff, "reason": "unlabeled",
                  "evidence_refs": [], "source_ids": []}
         for key in ("group_id", "verified_group_id", "group_ids", "group_verified",
-                    "group_ref", "group_evidence_ref"):
+                    "group_ref", "group_evidence_ref", "source_cohort", "cutoff_basis"):
             if key in target:
                 entry[key] = target[key]
         entry.update(label_version=None, label_available_at=None, valid_from=None,
-                     valid_to=None, incident_onset=None, audit_decision="not_admitted", source_checksums={})
+                     valid_to=None, audit_decision="not_admitted", source_checksums={})
         if task in TOKEN_TASKS:
             entry["pool_addresses"] = sorted(address(pool) for pool in target.get("pools", []) if address(pool))
         candidates = by_entity.get((task, entity or ""), [])
@@ -357,9 +379,9 @@ def reconcile_labels(records: Iterable[dict[str, Any]], targets: Iterable[dict[s
         if task in TOKEN_TASKS:
             conflict_candidates = [record for record in candidates
                                    if record.get("pool_addresses") == entry["pool_addresses"]
-                                   and _time(record.get("valid_from")) is not None
-                                   and _time(record.get("valid_to")) is not None and cutoff is not None
-                                   and _time(record["valid_from"]) <= cutoff <= _time(record["valid_to"])]
+                                   and cutoff is not None
+                                   and (record.get("valid_from") is None or _time(record["valid_from"]) <= cutoff)
+                                   and (record.get("valid_to") is None or cutoff <= _time(record["valid_to"]))]
         values = {record.get("mapped_label") for record in conflict_candidates
                   if record.get("mapped_label") in (0, 1) and record.get("label_status") != "invalid"}
         entry["evidence_refs"] = sorted({str(record.get("evidence_ref")) for record in candidates if record.get("evidence_ref")})
@@ -389,22 +411,18 @@ def reconcile_labels(records: Iterable[dict[str, Any]], targets: Iterable[dict[s
                         or sorted(record["pool_addresses"]) != entry["pool_addresses"]):
                     rejection = "label_pool_scope_mismatch"
                     continue
-                if task == "rug_pull" and record.get("mapped_label") == 1:
-                    onset = _time(record.get("incident_onset"))
+                if task == "rug_pull" and record.get("mapped_label") == 1 and not _tokenscout_retrospective(record, task, source_label_policy):
                     tx = str(record.get("incident_tx") or "")
                     valid_tx = len(tx) == 66 and tx.startswith("0x") and all(char in "0123456789abcdefABCDEF" for char in tx[2:])
-                    if (onset is None or onset > cutoff or not valid_tx
-                            or not record.get("controller_evidence_ref")):
-                        rejection = "missing_or_future_rug_incident_evidence"
+                    if not valid_tx or not record.get("controller_evidence_ref"):
+                        rejection = "missing_rug_incident_evidence"
                         continue
                 if task == "phishing" and status == "supported_positive" and record.get("role") == "benign_address":
                     rejection = "role_incompatible_with_positive_label"
                     continue
                 valid_from, valid_to = _time(record.get("valid_from")), _time(record.get("valid_to"))
-                if task in TOKEN_TASKS and valid_to is None:
-                    rejection = "token_label_requires_bounded_valid_period"
-                    continue
-                if valid_from is None or cutoff < valid_from or valid_to is not None and cutoff > valid_to:
+                if (valid_from is not None and cutoff < valid_from
+                        or valid_to is not None and cutoff > valid_to):
                     rejection = "unknown_or_inapplicable_valid_period"
                     continue
                 available = _time(record.get("label_available_at"))
@@ -420,16 +438,21 @@ def reconcile_labels(records: Iterable[dict[str, Any]], targets: Iterable[dict[s
                 chosen = admitted[0]
                 entry.update(label_status=chosen["label_status"], observed_target=chosen["mapped_label"],
                              eligible=True, reason="admitted_reviewed_label", audit_decision="admitted")
+                if _tokenscout_retrospective(chosen, task, source_label_policy):
+                    entry.update(reason="admitted_source_defined_retrospective_label",
+                        label_policy=TOKENSCOUT_RETROSPECTIVE_POLICY,
+                        audit_basis=chosen["audit_basis"], independent_mechanism_validation=False,
+                        source_label=chosen["source_label"], incident_onset=None,
+                        incident_tx=None, controller_evidence_ref=None)
                 versions = sorted({str(record.get("label_version")) for record in admitted})
                 entry["label_version"] = versions[0] if len(versions) == 1 else "mixed"
                 entry["label_versions"] = versions
                 availability = [_time(record.get("label_available_at")) for record in admitted]
                 entry["label_available_at"] = max(availability) if all(value is not None for value in availability) else None
-                entry["valid_from"] = max(_time(record["valid_from"]) for record in admitted)
+                lower = [_time(record["valid_from"]) for record in admitted if record.get("valid_from") is not None]
+                entry["valid_from"] = max(lower) if lower else None
                 upper = [_time(record.get("valid_to")) for record in admitted if record.get("valid_to") is not None]
-                onset = [_time(record.get("incident_onset")) for record in admitted if record.get("incident_onset") is not None]
                 entry["valid_to"] = min(upper) if upper else None
-                entry["incident_onset"] = min(onset) if onset else None
             elif rejection:
                 entry.update(label_status="temporally_unresolved", reason=rejection)
             elif candidates and all(record.get("label_status") == "invalid" for record in candidates):

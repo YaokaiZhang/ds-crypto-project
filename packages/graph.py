@@ -15,11 +15,14 @@ from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Sequence
 
 from .token import (TOKEN_TASKS, TOKEN_VIEW_VERSION, TOKEN_SCOPE_VERSION,
+    TOKEN_RECENT_SAMPLING, TOKEN_RECENT_VIEW_VERSION, TOKEN_RECENT_SCOPE_VERSION,
     TOKEN_NODE_FEATURES, TOKEN_EDGE_FEATURES, token_scope,
     token_coverage_complete, annotate_token_events, mechanism_features)
 
 SCHEMA_VERSION = "chainrisk-graph-1.0"
 GRAPH_VIEW_VERSION = "scam-egonet-1.0"
+RECENT_SAMPLING = "recent_bounded_v1"
+RECENT_VIEW_VERSION = "scam-recent-egonet-2.0"
 RELATION_NAMES = [
     "external_eth", "internal_eth", "call", "failed_call", "erc20_transfer",
     "lp_transfer", "swap", "mint", "burn", "sync", "pair_created", "contains", "deployed", "participates",
@@ -42,10 +45,25 @@ _NODE_UNSCALED = set(range(5)) | {13, 14, 15}
 _EDGE_UNSCALED = {2, 6, 7, 8, 9, 10}
 
 
-def graph_schema(task_id: str) -> tuple[str, list[str], list[str]]:
+def graph_schema(task_id: str, sampling_mode=None) -> tuple[str, list[str], list[str]]:
     if task_id in TOKEN_TASKS:
-        return TOKEN_VIEW_VERSION, FEATURE_NAMES + TOKEN_NODE_FEATURES, EDGE_FEATURE_NAMES + TOKEN_EDGE_FEATURES
-    return GRAPH_VIEW_VERSION, list(FEATURE_NAMES), list(EDGE_FEATURE_NAMES)
+        if sampling_mode not in (None, "hash", TOKEN_RECENT_SAMPLING):
+            raise ValueError("unsupported token sampling mode")
+        return (TOKEN_RECENT_VIEW_VERSION if sampling_mode == TOKEN_RECENT_SAMPLING else TOKEN_VIEW_VERSION), FEATURE_NAMES + TOKEN_NODE_FEATURES, EDGE_FEATURE_NAMES + TOKEN_EDGE_FEATURES
+    if sampling_mode not in (None, "hash", RECENT_SAMPLING):
+        raise ValueError("unsupported address sampling mode")
+    return (RECENT_VIEW_VERSION if sampling_mode == RECENT_SAMPLING else GRAPH_VIEW_VERSION), list(FEATURE_NAMES), list(EDGE_FEATURE_NAMES)
+
+
+def recent_neighbors(node, events, fanout):
+    """Latest interaction per distinct counterparty; lexical ties are stable."""
+    latest = {}
+    for row in events:
+        src, dst = row["src"], row["dst"]
+        other = dst if src == node else src if dst == node else None
+        if other and other != node:
+            latest[other] = max(latest.get(other, -1), row["timestamp"])
+    return sorted(latest, key=lambda other: (-latest[other], other))[:fanout]
 
 
 def _address(value: Any) -> str:
@@ -91,6 +109,13 @@ def _log(value: float) -> float:
 def _coverage_complete(coverage: Any, start: int, cutoff: int, sampling: Mapping[str, Any]) -> bool:
     if not isinstance(coverage, dict) or coverage.get("complete") is not True:
         return False
+    if sampling.get("sampling_mode") == RECENT_SAMPLING:
+        if (coverage.get("scope") != RECENT_SAMPLING or coverage.get("sampled_history_complete") is not True
+                or coverage.get("cutoff") != cutoff
+                or any(coverage.get(key) != sampling.get(key) for key in
+                       ("hops", "fanouts", "seed", "max_nodes", "rows_per_action", "pages_per_action"))):
+            return False
+        return bool(coverage.get("sources")) and all(row.get("complete") is True for row in coverage["sources"])
     covered_start = coverage.get("start_timestamp", coverage.get("observation_start", start))
     covered_end = coverage.get("end_timestamp", coverage.get("cutoff", cutoff))
     # A bounded BFS collection only covers the same deterministic neighborhood.
@@ -146,6 +171,7 @@ def _build_graph_sample(
     target: Mapping[str, Any], events: Iterable[Mapping[str, Any]], *,
     window_days: int = 30, hops: int = 2, fanouts: Sequence[int] = (32, 16),
     max_nodes: int = 512, max_edges: int = 4096, seed: int = 20261008, builder: GraphBuilder,
+    sampling_mode: str = "hash", rows_per_action: int = 100, pages_per_action: int = 1,
 ) -> dict[str, Any]:
     """Build one deterministic address graph without consulting labels.
 
@@ -167,7 +193,10 @@ def _build_graph_sample(
     if not isinstance(cutoff, int) or isinstance(cutoff, bool):
         raise ValueError("cutoff must be an integer Unix timestamp")
     start = cutoff - window_days * 86400
-    view_version, feature_names, edge_feature_names = graph_schema(task)
+    view_version, feature_names, edge_feature_names = graph_schema(task, sampling_mode)
+    recent = sampling_mode in {RECENT_SAMPLING, TOKEN_RECENT_SAMPLING}
+    if sampling_mode == RECENT_SAMPLING and task not in {"phishing", "ponzi"}:
+        raise ValueError("recent sampling requires an address task")
     scope, scope_error = None, None
     if task in TOKEN_TASKS:
         events = list(events)
@@ -309,7 +338,13 @@ def _build_graph_sample(
         for node in sorted(frontier):
             neighbors = adjacency[node]
             sampling_truncated |= len(neighbors) > fanouts[hop]
-            for other in select_neighbor_addresses(root, node, neighbors, fanouts[hop], seed):
+            scopes = (target.get("coverage") or {}).get("frontier_scopes", []) if recent else []
+            frozen = next((item["selected_neighbors"] for item in scopes if item["address"] == node and item["hop"] == hop), None)
+            chosen = ((frozen if frozen is not None else recent_neighbors(node, rows, fanouts[hop])) if recent
+                      else select_neighbor_addresses(root, node, neighbors, fanouts[hop], seed))
+            for other in chosen:
+                if other not in neighbors:
+                    continue
                 if other in selected:
                     continue
                 if len(selected) >= max_nodes:
@@ -423,7 +458,9 @@ def _build_graph_sample(
                     for (pool, participant), flow in sorted(lp_flows.items())]
     sampling = {"hops": hops, "fanouts": list(fanouts[:hops]), "seed": seed,
                 "max_nodes": max_nodes}
-    complete = (bool(scope) and token_coverage_complete(target.get("coverage"), scope, start, cutoff)
+    if recent:
+        sampling.update(sampling_mode=sampling_mode, rows_per_action=rows_per_action, pages_per_action=pages_per_action)
+    complete = (bool(scope) and token_coverage_complete(target.get("coverage"), scope, start, cutoff, sampling if recent else None)
                 if task in TOKEN_TASKS else _coverage_complete(target.get("coverage"), start, cutoff, sampling))
     activity_count = sum(row["relation"] not in {"contains", "deployed", "pair_created", "participates"} for row in retained)
     status = "ok" if complete else "data_incomplete"
@@ -454,6 +491,10 @@ def _build_graph_sample(
             "sampling": {"seed": seed, "hops": hops, "fanouts": list(fanouts[:hops]),
                 "max_nodes": max_nodes, "max_edges": max_edges, "window_days": window_days}},
     }
+    if recent:
+        result["lineage"]["sampling"].update(sampling_mode=sampling_mode,
+            rows_per_action=rows_per_action, pages_per_action=pages_per_action)
+        result["quality"].update(stat_scope="bounded_recent_observed_subgraph", full_history_complete=False)
     if task in TOKEN_TASKS:
         result["quality"].update(scope_status="verified" if scope else "unverified", scope_reason=scope_error,
                                  stat_scope="selected_token_pool_emitters")
@@ -461,12 +502,17 @@ def _build_graph_sample(
                                  mechanism_summary_event_ids=mechanism_lineage,
                                  mechanism_summary_scope="selected_token_pool_emitters_before_sampling")
         result["lineage"]["sampling"].update(mandatory_selected_pools=True)
+        if sampling_mode == TOKEN_RECENT_SAMPLING:
+            result["quality"].update(stat_scope="bounded_recent_token_pool_emitters", full_history_complete=False)
+            result["lineage"].update(scope_version=TOKEN_RECENT_SCOPE_VERSION,
+                mechanism_summary_scope="bounded_recent_token_pool_emitters_before_sampling")
     validate_graph_sample(result)
     return result
 
 
 def validate_graph_sample(sample: Mapping[str, Any]) -> None:
-    view, features, edge_features = graph_schema(sample.get("task_id"))
+    mode = sample.get("lineage", {}).get("sampling", {}).get("sampling_mode")
+    view, features, edge_features = graph_schema(sample.get("task_id"), mode)
     if sample.get("schema_version") != SCHEMA_VERSION or sample.get("graph_view_version") != view:
         raise ValueError("unsupported graph schema/view version")
     if sample.get("feature_names") != features or sample.get("edge_feature_names") != edge_features:
@@ -524,7 +570,10 @@ def graph_is_usable(sample: Mapping[str, Any]) -> bool:
                 or scope.get("token") != sample["target"]
                 or sorted(item["pool"] for item in scope.get("pools", [])) != sample["lineage"]["selected_pools"]
                 or not token_coverage_complete(quality.get("collection_coverage"), scope,
-                                               sample["feature_start"], sample["cutoff"])):
+                                               sample["feature_start"], sample["cutoff"],
+                                               {k: v for k, v in sample["lineage"]["sampling"].items()
+                                                if k in {"hops", "fanouts", "seed", "max_nodes", "sampling_mode", "rows_per_action", "pages_per_action"}}
+                                               if sample["lineage"]["sampling"].get("sampling_mode") == TOKEN_RECENT_SAMPLING else None)):
             return False
     return (quality.get("status") == "ok" and quality.get("coverage_complete") is True
             and isinstance(quality.get("observed_events"), int) and quality["observed_events"] > 0)
@@ -537,7 +586,18 @@ def graph_recipe(sample: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("graph builder/sampling recipe missing or incompatible")
     required = {"seed", "hops", "fanouts", "max_nodes", "max_edges", "window_days"}
     extras = {"mandatory_selected_pools"} if sample["task_id"] in TOKEN_TASKS else set()
-    if set(sampling) != required | extras or extras and sampling.get("mandatory_selected_pools") is not True:
+    if sampling.get("sampling_mode") == RECENT_SAMPLING:
+        extras = {"sampling_mode", "rows_per_action", "pages_per_action"}
+        if (sample.get("graph_view_version") != RECENT_VIEW_VERSION
+                or any(not isinstance(sampling[k], int) or isinstance(sampling[k], bool) or sampling[k] < 1
+                       for k in ("rows_per_action", "pages_per_action"))):
+            raise ValueError("invalid bounded recent graph recipe")
+    if sampling.get("sampling_mode") == TOKEN_RECENT_SAMPLING:
+        extras |= {"sampling_mode", "rows_per_action", "pages_per_action"}
+        if (sample.get("graph_view_version") != TOKEN_RECENT_VIEW_VERSION
+                or any(type(sampling[k]) is not int or sampling[k] < 1 for k in ("rows_per_action", "pages_per_action"))):
+            raise ValueError("invalid token bounded recent graph recipe")
+    if set(sampling) != required | extras or "mandatory_selected_pools" in extras and sampling.get("mandatory_selected_pools") is not True:
         raise ValueError("graph sampling recipe schema mismatch")
     if (any(not isinstance(sampling[key], int) or isinstance(sampling[key], bool) for key in required - {"fanouts"})
             or sampling["hops"] < 1 or sampling["window_days"] < 1

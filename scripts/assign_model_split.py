@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assign complete labelled tokens to the frozen general 80/10/10 split.
+"""Assign complete labelled tokens to the frozen general 90/10 split.
 
 The source data product keeps the historical chronology-based split for audit
 purposes. This module reads its complete labelled population and writes a
@@ -11,14 +11,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from packages.evaluation_protocol import PARTITIONS, evaluation_policy
 
 
 PRIMARY_LABELS = frozenset({"low_volume_dead", "continued_activity"})
-PARTITIONS = ("train", "validation", "test")
 DEFAULT_SEED = 20261001
 
 
@@ -33,8 +34,8 @@ def proportional_counts(total: int, ratios: dict[str, float]) -> dict[str, int]:
         raise ValueError("total must be non-negative")
     if set(ratios) != set(PARTITIONS):
         raise ValueError(f"ratios must contain exactly {PARTITIONS}")
-    if any(value < 0 for value in ratios.values()) or sum(ratios.values()) <= 0:
-        raise ValueError("ratios must be non-negative and have a positive sum")
+    if any(not math.isfinite(value) or value <= 0 for value in ratios.values()):
+        raise ValueError("train/validation ratios must be positive and finite")
     scale = sum(ratios.values())
     exact = {partition: total * ratios[partition] / scale for partition in PARTITIONS}
     counts = {partition: int(exact[partition]) for partition in PARTITIONS}
@@ -101,7 +102,7 @@ def assign_partitions(
             for member in members:
                 copied = dict(member)
                 copied["partition"] = partition
-                copied["graph_role"] = "test_holdout" if partition == "test" else "development"
+                copied["graph_role"] = "development"
                 copied["assignment_hash"] = stable_hash(seed, label, launch_period, group)
                 assigned_rows.append(copied)
 
@@ -252,14 +253,15 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     for row in assigned:
         row["censoring_status"] = False
         row["exclusion_reason"] = None
-        row["split_frozen_before_test_labels"] = True
-        row["split_freeze_evidence"] = "general-stratified-token-split-0.1"
+        row["split_frozen_before_model_selection"] = True
+        row["split_freeze_evidence"] = "general-stratified-token-split-0.2"
 
     output.mkdir(parents=True, exist_ok=True)
     write_parquet(output / "splits.parquet", assigned)
     write_jsonl(output / "targets.jsonl", assigned)
     manifest = {
-        "manifest_version": "general-stratified-token-split-0.1",
+        "manifest_version": "general-stratified-token-split-0.2",
+        "evaluation": evaluation_policy(),
         "created_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "data_product": str(data_product),
         "config": str(config_path),
@@ -292,7 +294,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             }
             for partition in PARTITIONS
         },
-        "test_policy": "test partition assigned once and excluded from model selection",
+        "validation_policy": "90/10 train/validation; validation selects models and is the final reported partition",
         "censored_policy": "censored rows remain in the source data product and are absent here",
         "outputs": {
             "splits": str(output / "splits.parquet"),

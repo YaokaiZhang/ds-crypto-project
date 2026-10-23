@@ -1,6 +1,26 @@
 # Honeypot and Rug Pull offline training pipeline
 
-Revision: 2026-10-15. All four Task B branches now have offline training,
+当前公共阶段以 [统一入口说明](SCAM_PIPELINE.md) 为准：`sources / collect / prepare / train / all / status`。`all` 包含训练并要求 `--run`；本文较早的内部阶段与历史实验记录不改变既有结果。
+
+2026-10-22: the new TokenScout Rug Pull source-label preparation is documented in
+[RUG_PULL_LABEL_PREPARATION.md](RUG_PULL_LABEL_PREPARATION.md). Its all/evidence
+stages download/audit labels and verify selected pools, then write a quality report.
+Explicit plan/collect/build-graphs/graphs stages now reuse the frozen cohort and
+existing token engine; see [RUG_PULL_COLLECTION_PIPELINE.md](RUG_PULL_COLLECTION_PIPELINE.md).
+The 2026-10-23 prepare-training extension and executable training command are in
+[RUG_PULL_TRAINING_PIPELINE.md](RUG_PULL_TRAINING_PIPELINE.md).
+Training remains separate. The existing generic incident-reviewed label adapter
+and graph/training recipes remain unchanged.
+
+The real-source Honeypot evidence workflow is described in
+[HONEYPOT_OFFLINE_PIPELINE.md](HONEYPOT_OFFLINE_PIPELINE.md). It audits Trapdoor
+CSVs and adds a separate 1,000-token API cohort via run_pipeline. As of
+2026-10-21, run_pipeline also supports the versioned bounded graph workflow in
+[HONEYPOT_GRAPH_PIPELINE.md](HONEYPOT_GRAPH_PIPELINE.md). The complete-window
+token-v2-scoped-2.0 inputs below remain a distinct recipe; they must not be mixed
+with token-v2-recent-1.0. Graph collection does not automatically admit labels.
+
+Revision: 2026-10-20 (90/10 train/validation reporting). All four Task B branches now have offline training,
 evaluation, bundle export and label-free prediction code. This revision delivers
 implementation and synthetic engineering checks, not real data, fitted research
 weights, performance results or backend integration.
@@ -24,7 +44,11 @@ Automatic pool discovery for website inputs belongs to later service work.
 The default model is `directed_edge_sage`; `mean_sage` remains a matched baseline.
 The two tasks have separate weights, scalers, label meanings and thresholds.
 Scalers fit train only; validation AP selects the checkpoint; validation macro-F1
-selects the binary threshold. Three website risk bands and calibration remain
+selects the binary threshold. New preparation uses a fixed class-stratified,
+group-preserving 90/10 train/validation split without a test set. Final reporting
+uses validation Accuracy, with Balanced Accuracy/F1 and raw/row-normalized
+confusion matrices. Validation is reused for model and threshold selection; the
+result is not an independent test estimate. Three website risk bands and calibration remain
 separate future policies.
 
 ## Input contracts
@@ -133,16 +157,16 @@ this implementation. Network commands require `--allow-network`.
 For Honeypot, start from candidate targets with known selected pool addresses:
 
 ```bash
-uv run --frozen chainrisk-task-b capture-honeypot --task honeypot --targets candidates.jsonl --output data/task_b/honeypot/evidence --allow-network
-uv run --frozen chainrisk-task-b import-labels --task honeypot --source honeypot_is --input reviewed-honeypot-snapshots.jsonl --output honeypot-labels.jsonl
-uv run --frozen chainrisk-task-b verify-token-targets --task honeypot --targets data/task_b/honeypot/evidence/detection_targets.jsonl --output data/task_b/honeypot/verification --allow-network
+uv run --frozen chainrisk-scam capture-honeypot --task honeypot --targets candidates.jsonl --output data/scam/honeypot/evidence --allow-network
+uv run --frozen chainrisk-scam import-labels --task honeypot --source honeypot_is --input reviewed-honeypot-snapshots.jsonl --output honeypot-labels.jsonl
+uv run --frozen chainrisk-scam verify-token-targets --task honeypot --targets data/scam/honeypot/evidence/detection_targets.jsonl --output data/scam/honeypot/verification --allow-network
 ```
 
 For Rug Pull, freeze reviewed incident/negative cutoffs and selected pools:
 
 ```bash
-uv run --frozen chainrisk-task-b import-labels --task rug_pull --source rug_incidents --input reviewed-rug-incidents.jsonl --output rug-labels.jsonl
-uv run --frozen chainrisk-task-b verify-token-targets --task rug_pull --targets rug-targets.jsonl --output data/task_b/rug_pull/verification --allow-network
+uv run --frozen chainrisk-scam import-labels --task rug_pull --source rug_incidents --input reviewed-rug-incidents.jsonl --output rug-labels.jsonl
+uv run --frozen chainrisk-scam verify-token-targets --task rug_pull --targets rug-targets.jsonl --output data/scam/rug_pull/verification --allow-network
 ```
 
 Verification reads the server-only `ETHEREUM_RPC_URL`. Block lookup/chain
@@ -154,13 +178,13 @@ separate directories so their raw request formats remain unambiguous.
 Repeat the following with `rug_pull` and its reviewed label file:
 
 ```bash
-uv run --frozen chainrisk-task-b collect --task honeypot --targets data/task_b/honeypot/verification/verified_targets.jsonl --output data/task_b/honeypot/chain --allow-network
-uv run --frozen chainrisk-task-b prepare --task honeypot --events data/task_b/honeypot/chain/events.jsonl --targets data/task_b/honeypot/chain/targets_with_coverage.jsonl --input honeypot-labels.jsonl --output data/task_b/honeypot/dataset
-uv run --frozen chainrisk-task-b train --task honeypot --graphs data/task_b/honeypot/dataset/graphs.jsonl --supervision data/task_b/honeypot/dataset/supervision.jsonl --splits data/task_b/honeypot/dataset/splits.jsonl --dry-run
-uv run --frozen chainrisk-task-b train --task honeypot --graphs data/task_b/honeypot/dataset/graphs.jsonl --supervision data/task_b/honeypot/dataset/supervision.jsonl --splits data/task_b/honeypot/dataset/splits.jsonl --output data/task_b/honeypot/run
-uv run --frozen chainrisk-task-b evaluate --task honeypot --graphs data/task_b/honeypot/dataset/graphs.jsonl --supervision data/task_b/honeypot/dataset/supervision.jsonl --splits data/task_b/honeypot/dataset/splits.jsonl --bundle data/task_b/honeypot/run/bundle --partition test --output data/task_b/honeypot/evaluation
-uv run --frozen chainrisk-task-b export --task honeypot --run-dir data/task_b/honeypot/run --output data/task_b/honeypot/export
-uv run --frozen chainrisk-task-b predict --task honeypot --graphs unknown-token-graphs.jsonl --bundle data/task_b/honeypot/export --output predictions.jsonl
+uv run --frozen chainrisk-scam collect --task honeypot --targets data/scam/honeypot/verification/verified_targets.jsonl --output data/scam/honeypot/chain --allow-network
+uv run --frozen chainrisk-scam prepare --task honeypot --events data/scam/honeypot/chain/events.jsonl --targets data/scam/honeypot/chain/targets_with_coverage.jsonl --input honeypot-labels.jsonl --output data/scam/honeypot/dataset
+uv run --frozen chainrisk-scam train --task honeypot --graphs data/scam/honeypot/dataset/graphs.jsonl --supervision data/scam/honeypot/dataset/supervision.jsonl --splits data/scam/honeypot/dataset/splits.jsonl --dry-run
+uv run --frozen chainrisk-scam train --task honeypot --graphs data/scam/honeypot/dataset/graphs.jsonl --supervision data/scam/honeypot/dataset/supervision.jsonl --splits data/scam/honeypot/dataset/splits.jsonl --output data/scam/honeypot/run
+uv run --frozen chainrisk-scam evaluate --task honeypot --graphs data/scam/honeypot/dataset/graphs.jsonl --supervision data/scam/honeypot/dataset/supervision.jsonl --splits data/scam/honeypot/dataset/splits.jsonl --bundle data/scam/honeypot/run/bundle --partition validation --output data/scam/honeypot/evaluation
+uv run --frozen chainrisk-scam export --task honeypot --run-dir data/scam/honeypot/run --output data/scam/honeypot/export
+uv run --frozen chainrisk-scam predict --task honeypot --graphs unknown-token-graphs.jsonl --bundle data/scam/honeypot/export --output predictions.jsonl
 ```
 
 `prepare` joins quality-approved graphs and reviewed labels, freezes the entity/
@@ -190,3 +214,10 @@ Primary interface references: [Honeypot API](https://docs.honeypot.is/ishoneypot
 [Ethereum JSON-RPC](https://ethereum.org/developers/docs/apis/json-rpc/),
 [Uniswap v2 Pair](https://github.com/Uniswap/v2-core/blob/master/contracts/UniswapV2Pair.sol),
 [Uniswap v2 ERC20](https://github.com/Uniswap/v2-core/blob/master/contracts/UniswapV2ERC20.sol).
+
+
+2026-10-21 combined Honeypot revision: use the `all-recent-v1` graph run for both
+Trapdoor (2023-01-31T23:59:59Z retrospective anchor) and frozen contemporary API
+labels. Local RPC configuration, four-sample concurrency, shared lossless gzip
+replay, `prepare-training`, and explicit `run_pipeline --stage train` are described
+in [HONEYPOT_GRAPH_PIPELINE.md](HONEYPOT_GRAPH_PIPELINE.md).

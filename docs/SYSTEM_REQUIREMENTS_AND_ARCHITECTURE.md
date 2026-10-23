@@ -87,7 +87,7 @@ further tuning needs a new final holdout.
 - Outcome uses the complete subsequent 90-day selected-pool historical `Swap.amountUSD`: below USD 1,000 is low_volume_dead, otherwise continued_activity.
 - Only swaps count toward outcome volume; Mint/Burn can be liquidity features. Transfers, airdrops and price changes do not define this label.
 - Incomplete follow-up/retrieval/pools or missing usable positive historical swap USD stays censored, never an imputed class.
-- Preserve label/launch-period-stratified 80/10/10 with overlap groups intact. Chronological splits are secondary; prospective evidence is a separate release gate.
+- New training uses label/launch-period-stratified 90/10 train/validation with overlap groups intact (2026-10-20 revision). Report validation performance after selection, with no independent test claim. Preserve historical split artifacts; prospective evidence remains a separate release gate.
 
 The historical name low_volume_dead means subsequent 90-day low volume, not scam,
 inevitable zero price or permanent inactivity. Longer 180/365-day studies require

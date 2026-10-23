@@ -13,6 +13,9 @@ from .transactions import address, integer
 TOKEN_TASKS = frozenset({"honeypot", "rug_pull"})
 TOKEN_VIEW_VERSION = "token-v2-scoped-2.0"
 TOKEN_SCOPE_VERSION = "selected-token-pools-1.0"
+TOKEN_RECENT_SAMPLING = "token_recent_bounded_v1"
+TOKEN_RECENT_VIEW_VERSION = "token-v2-recent-1.0"
+TOKEN_RECENT_SCOPE_VERSION = "selected-token-pools-recent-1.0"
 UNISWAP_V2_FACTORY = "0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f"
 TOKEN_NODE_FEATURES = [
     "log_buy_swaps", "log_sell_swaps", "log_mints", "log_burns", "log_lp_transfers",
@@ -75,19 +78,26 @@ def token_scope(target: Mapping[str, Any]) -> dict[str, Any]:
     return scope
 
 
-def token_coverage_complete(coverage: Any, scope: Mapping[str, Any], start: int, cutoff: int) -> bool:
+def token_coverage_complete(coverage: Any, scope: Mapping[str, Any], start: int, cutoff: int,
+                            sampling: Mapping[str, Any] | None = None) -> bool:
     if not isinstance(coverage, dict):
         return False
     digest = hashlib.sha256(json.dumps({key: value for key, value in scope.items() if key != "sha256"}, sort_keys=True).encode()).hexdigest()
     if scope.get("sha256") != digest:
         return False
     required = {scope["token"], *(item["pool"] for item in scope["pools"])}
-    if (coverage.get("complete") is not True or coverage.get("scope_version") != TOKEN_SCOPE_VERSION
+    recent = sampling is not None and sampling.get("sampling_mode") == TOKEN_RECENT_SAMPLING
+    version = TOKEN_RECENT_SCOPE_VERSION if recent else TOKEN_SCOPE_VERSION
+    if (coverage.get("complete") is not True or coverage.get("scope_version") != version
             or coverage.get("scope_sha256") != scope["sha256"]
             or coverage.get("start_timestamp") != start or coverage.get("end_timestamp") != cutoff
             or set(coverage.get("required_emitters", [])) != required
             or coverage.get("end_block") != scope["cutoff_block"]):
         return False
+    if recent:
+        if (coverage.get("full_history_complete") is not False or coverage.get("sampling") != dict(sampling)
+                or coverage.get("stop_reason") not in {"graph_budget_reached", "source_exhausted", "record_budget_reached"}):
+            return False
     sources = coverage.get("sources", [])
     if not isinstance(sources, list) or any(not isinstance(item, dict) for item in sources):
         return False
@@ -97,6 +107,9 @@ def token_coverage_complete(coverage: Any, scope: Mapping[str, Any], start: int,
             if (len(matches) != 1 or matches[0].get("complete") is not True
                     or matches[0].get("gaps") or matches[0].get("end_block") != scope["cutoff_block"]
                     or matches[0].get("start_block") != coverage.get("start_block")):
+                return False
+            if recent and (type(matches[0].get("rows")) is not int
+                           or not 0 <= matches[0]["rows"] <= sampling["rows_per_action"] * sampling["pages_per_action"]):
                 return False
     return True
 

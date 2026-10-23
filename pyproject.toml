@@ -25,11 +25,11 @@ serving = [
 ]
 
 [project.scripts]
-chainrisk-scam = "research.scam.cli:main"
+chainrisk-scam = "research.scam.pipeline:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["packages", "research", "research.scam", "research.scam.configs"]
+include = ["packages", "packages.*", "research", "research.scam", "research.scam.configs"]
 namespaces = true
 exclude = ["apps*", "deploy*", "scripts*", "checks*"]
 

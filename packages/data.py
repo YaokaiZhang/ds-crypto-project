@@ -137,6 +137,7 @@ def normalize_records(raw_rows: Iterable[dict[str, Any]],
             except ValueError:
                 pass
     events: dict[str, dict[str, Any]] = {}
+    failed_creations: dict[str, dict[str, Any]] = {}
     duplicates: list[str] = []
     raw_count = len(rows)
     for index, row in enumerate(rows):
@@ -162,6 +163,8 @@ def normalize_records(raw_rows: Iterable[dict[str, Any]],
                       "source_kind": kind}
             if "synthetic" in row:
                 common["synthetic"] = bool(row["synthetic"])
+            if row.get('original_trace_id') is not None:
+                common['lineage']['provider_original_trace_id'] = row['original_trace_id']
             output = []
             if kind == "logs":
                 if row.get("removed") is True:
@@ -221,6 +224,24 @@ def normalize_records(raw_rows: Iterable[dict[str, Any]],
                 common.update(trace_path=trace if kind == "internal" else None,
                               input=row.get("input"), method_id=row.get("methodId"),
                               gas_used=integer(row.get("gasUsed")), gas_price=integer(row.get("gasPrice")))
+                creation = row.get('type') in {'create', 'create2'} or (
+                    kind == 'normal' and 'to' in row and row['to'] in ('', None))
+                if common['success'] is False and src and not dst and creation:
+                    # A reverted creation has no deployed contract address.
+                    # Keep this fact in the audit without inventing a graph edge.
+                    fact = {k: v for k, v in common.items() if k != 'input'}
+                    fact.update(event_id=prefix + ':failed_create', relation='failed_create', raw_amount=None,
+                                attempted_raw_amount=str(amount), err_code=row.get('errCode'),
+                                graph_inclusion='audit_only_no_destination')
+                    previous = failed_creations.get(fact['event_id'])
+                    if previous is not None:
+                        if any(previous.get(k) != fact.get(k) for k in
+                               ('src', 'attempted_raw_amount', 'timestamp', 'block_number', 'block_hash', 'success')):
+                            raise ValueError('conflicting_duplicate_failed_creation')
+                        previous['lineage'].setdefault('duplicate_sources', []).append(fact['lineage'])
+                    else:
+                        failed_creations[fact['event_id']] = fact
+                    continue
                 if common["success"] is False:
                     output.append({**common, "event_id": prefix + ":failed_call", "relation": "failed_call",
                                    "raw_amount": None, "attempted_raw_amount": str(amount)})
@@ -259,7 +280,8 @@ def normalize_records(raw_rows: Iterable[dict[str, Any]],
                   if e["relation"] == "external_eth"}
     suppressed = []
     for key, event in list(events.items()):
-        if event["relation"] == "internal_eth" and event.get("trace_path") == "0" and (
+        if event["relation"] == "internal_eth" and (event.get("trace_path") == "0"
+                or event['lineage'].get('provider_original_trace_id') == '0') and (
                 event["tx_hash"], event["src"], event["dst"], event["raw_amount"]) in root_money:
             suppressed.append(key)
             del events[key]
@@ -268,6 +290,7 @@ def normalize_records(raw_rows: Iterable[dict[str, Any]],
                      "invalid_records": invalid, "duplicate_records": duplicates,
                      "suppressed_root_internal": suppressed, "hydrated_erc20_history": hydrated_history,
                      "missing_success_events": [event["event_id"] for event in ordered if event["success"] is None],
+                     "failed_creations_without_address": [failed_creations[k] for k in sorted(failed_creations)],
                      "complete": not invalid}
 
 

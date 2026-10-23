@@ -1,29 +1,30 @@
 {
-  "split_version": "general-stratified-token-split-0.1",
+  "split_version": "general-stratified-token-split-0.2",
   "seed": 20261001,
   "primary_policy": "general_token_level_split",
   "ratios": {
-    "train": 0.8,
-    "validation": 0.1,
-    "test": 0.1
+    "train": 0.9,
+    "validation": 0.1
   },
-  "development_definition": "training plus validation; the validation partition is the 10% middle split",
-  "unit": ["token_address", "source_dataset"],
-  "stratify_within": ["label", "launch_period"],
+  "development_definition": "training plus validation; no independent test partition",
+  "unit": [
+    "token_address",
+    "source_dataset"
+  ],
+  "stratify_within": [
+    "label",
+    "launch_period"
+  ],
   "group_boundary": "overlap_group",
   "deterministic_assignment": "fixed seed and deterministic hash order within each label, launch-period, and overlap-group stratum",
   "class_balance_example": {
     "active_rows": 1000,
     "low_volume_dead_rows": 1000,
     "train": {
-      "continued_activity": 800,
-      "low_volume_dead": 800
+      "continued_activity": 900,
+      "low_volume_dead": 900
     },
     "validation": {
-      "continued_activity": 100,
-      "low_volume_dead": 100
-    },
-    "test": {
       "continued_activity": 100,
       "low_volume_dead": 100
     }
@@ -35,9 +36,13 @@
     "training_imbalance": "when the complete population is not 1:1, use all training rows and document class weights or training-only sampling"
   },
   "evaluation": {
-    "test_locked_until_model_selection": true,
     "threshold_and_calibration": "fit on training and validation only",
     "chronological_stress_test": "optional secondary analysis, not the primary split",
-    "market_prevalence_claim": false
+    "market_prevalence_claim": false,
+    "primary_partition": "validation",
+    "primary_metric": "accuracy",
+    "independent_test_set": false,
+    "validation_reused_for_model_selection": true,
+    "interpretation": "validation performance after model/threshold selection; not an independent test estimate"
   }
 }

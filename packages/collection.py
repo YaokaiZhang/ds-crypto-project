@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,10 +14,25 @@ from urllib.request import Request, urlopen
 from .data import SOURCE_KINDS, normalize_records
 from .transactions import address, decode_v2_log, integer
 from .token import TOKEN_TASKS, TOKEN_SCOPE_VERSION, token_scope
+from .progress import progress_bar
+from .io import atomic_bytes
+from .provider_access import etherscan_key, SerialRequestBudget, REQUESTS_PER_SECOND, REQUESTS_PER_24H
 
 
 class CollectionError(RuntimeError):
     pass
+
+
+def transient_network_error(error):
+    """Transport outages are retryable provider failures, never bad samples."""
+    text = str(error).lower()
+    return any(marker in text for marker in (
+        "nodename nor servname", "name resolution", "name or service not known", "getaddrinfo failed",
+        "network is unreachable", "network is down", "no route to host", "connection reset",
+        "connection aborted", "connection refused", "remote end closed connection", "broken pipe",
+        "timed out", "timeout", "temporary failure in name", "temporarily unavailable",
+        "http error 502", "http error 503", "http error 504", "provider_request_cancelled",
+        "sample_request_cancelled", "snapshot_request_cancelled", "honeypot_stage_cancelled"))
 
 
 def _save(path: Path, value: Any) -> None:
@@ -66,18 +80,33 @@ class EtherscanClient:
         self.out = Path(out)
         self.settings = dict(settings or {})
         self.endpoint = _safe_endpoint(self.settings.get("endpoint", "https://api.etherscan.io/v2/api"))
-        self.key = self.settings.get("api_key") or os.environ.get(self.settings.get("api_key_env", "ETHERSCAN_API_KEY"), "")
+        self.key = self.settings.get("api_key") or etherscan_key(self.settings.get("api_key_env", "ETHERSCAN_API_KEY"))
         self.transport = transport or self.settings.get("transport")
+        shared = self.settings.get("shared_cache_dir")
+        fixture_mode = self.settings.get("fixtures") or self.settings.get("fixture_dir") or self.transport
+        # Fixture/synthetic responses must never populate a real shared cache.
+        self.shared_cache = Path(shared) / hashlib.sha256(self.endpoint.encode()).hexdigest() if shared and not fixture_mode else None
         self.page_size = min(1000, max(1, int(self.settings.get("page_size", 1000))))
         self.max_pages = max(1, int(self.settings.get("max_pages", 10)))
-        self.rate = min(3.0, max(0.01, float(self.settings.get("rate_limit_rps", 3))))
+        self.rate = min(REQUESTS_PER_SECOND, max(0.01, float(self.settings.get("rate_limit_rps", REQUESTS_PER_SECOND))))
+        self.budget = self.settings.get("request_budget") or SerialRequestBudget(rate=self.rate)
         self.retries = max(0, int(self.settings.get("retries", 3)))
         self.timeout = float(self.settings.get("timeout_seconds", 30))
         self.max_requests = max(1, int(self.settings.get("max_requests", 10000)))
+        self.max_history_rows = max(1, int(self.settings.get("max_history_rows", 100000)))
         self.request_count = 0
         self.cached_count = 0
-        self._last_request = 0.0
-        self._bundles: dict[str, dict[str, Any]] = {}
+        self.http_attempts = 0
+        self.http_seconds = 0.0
+        self.on_progress = None
+        self.active_query = {}
+
+    def report_progress(self, phase):
+        if self.on_progress:
+            self.on_progress({"phase": phase, "query": self.active_query,
+                              "requests": self.request_count, "cache_hits": self.cached_count,
+                              "http_attempts": self.http_attempts, "http_seconds": self.http_seconds,
+                              "throttle_wait_seconds": self.budget.wait_seconds})
 
     def _fixture(self, query: dict[str, Any]) -> Any:
         fixtures = self.settings.get("fixtures", {})
@@ -110,21 +139,26 @@ class EtherscanClient:
 
     def request(self, module: str, action: str, **params: Any) -> dict[str, Any]:
         query = {"chainid": 1, "module": module, "action": action, **params}
+        self.active_query = {name: value for name, value in query.items() if name != "apikey"}
         if integer(query["chainid"]) != 1:
             raise CollectionError("ethereum_mainnet_only")
         key = self.request_id(query)
-        path = self.out / "raw_requests" / f"{key}.json"
+        if self.settings.get("logical_query_progress"):
+            self.report_progress("query")
+        path = (self.shared_cache or self.out) / "raw_requests" / f"{key}.json"
         if path.exists():
             bundle = json.loads(path.read_text())
             if bundle.get("request") != query or bundle.get("complete") is not True:
                 raise CollectionError("invalid_cached_request")
+            if self.shared_cache and bundle.get("endpoint") != self.endpoint:
+                raise CollectionError("cached_provider_mismatch")
             self._validate_response(bundle.get("response"), action)
             digest = hashlib.sha256(json.dumps(bundle["response"], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
             if bundle.get("response_sha256") != digest:
                 raise CollectionError("cached_response_checksum_mismatch")
             bundle["raw_path"] = str(path.resolve())
-            self._bundles[key] = bundle
             self.cached_count += 1
+            self.report_progress("cache")
             return bundle
         if self.request_count >= self.max_requests:
             raise CollectionError("request_budget_exhausted")
@@ -139,31 +173,53 @@ class EtherscanClient:
                 if self.request_count >= self.max_requests:
                     raise CollectionError("request_budget_exhausted")
                 self.request_count += 1
+                self.report_progress("request")
                 if self.transport:
                     payload = self.transport(dict(query))
                 elif has_fixtures:
                     payload = self._fixture(query)
                 else:
-                    remaining = 1 / self.rate - (time.monotonic() - self._last_request)
-                    if remaining > 0:
-                        time.sleep(remaining)
-                    self._last_request = time.monotonic()
                     url = self.endpoint + "?" + urlencode({**query, "apikey": self.key})
                     request = Request(url, headers={"Accept": "application/json", "User-Agent": "chainrisk-scam/0.1"})
-                    with urlopen(request, timeout=self.timeout) as response:
-                        payload = json.load(response)
+                    with self.budget.request_slot():
+                        cancelled = self.settings.get("cancel_event")
+                        if cancelled is not None and cancelled.is_set():
+                            raise CollectionError("sample_request_cancelled")
+                        self.http_attempts += 1
+                        started = time.perf_counter()
+                        try:
+                            with urlopen(request, timeout=self.timeout) as response:
+                                byte_limit = self.settings.get("max_response_bytes")
+                                if byte_limit:
+                                    body = response.read(int(byte_limit) + 1)
+                                    if len(body) > int(byte_limit):
+                                        raise CollectionError("response_byte_budget_exhausted")
+                                    payload = json.loads(body)
+                                else:
+                                    payload = json.load(response)
+                        finally:
+                            self.http_seconds += time.perf_counter() - started
                 self._validate_response(payload, action)
                 bundle = {"request_id": key, "request": query, "endpoint": self.endpoint,
                           "source_kind": SOURCE_KINDS.get(action, action), "retrieved_at": _now(),
                           "response": payload, "complete": True}
                 bundle["response_sha256"] = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+                if self.shared_cache:
+                    published = atomic_bytes(path, json.dumps(bundle, sort_keys=True).encode(), immutable=True)
+                    # Validate and use the winner if another process published
+                    # the same historical request while this one was in flight.
+                    winner = self.request(module, action, **params)
+                    if published:
+                        self.cached_count -= 1
+                    return winner
                 _save(path, bundle)
                 bundle["raw_path"] = str(path.resolve())
-                self._bundles[key] = bundle
+                self.report_progress("received")
                 return bundle
             except (CollectionError, HTTPError, URLError, TimeoutError, ValueError, OSError) as exc:
                 last_error = _safe_error(exc, [self.key])
-                retryable = any(marker in last_error.lower() for marker in (
+                self.report_progress("error")
+                retryable = transient_network_error(last_error) or any(marker in last_error.lower() for marker in (
                     "rate limit", "timeout", "timed out", "temporarily", "429", "502", "503", "504", "max rate"))
                 if not retryable or attempt == self.retries:
                     break
@@ -214,6 +270,9 @@ class EtherscanClient:
         segments = []
 
         def fetch(low: int, high: int, depth: int = 0) -> None:
+            if len(rows) >= self.max_history_rows:
+                gaps.append({"start_block": low, "end_block": high, "reason": "history_row_budget_exhausted"})
+                return
             local = []
             page_digests = set()
             reason = None
@@ -229,6 +288,8 @@ class EtherscanClient:
                         page_rows = []  # validated, recognized empty response only
                     if len(page_rows) > self.page_size:
                         raise CollectionError("api_page_size_exceeded")
+                    if len(rows) + len(local) + len(page_rows) > self.max_history_rows:
+                        raise CollectionError("history_row_budget_exhausted")
                     if any((block := integer(raw.get("blockNumber", raw.get("block_number")))) is None
                            or not low <= block <= high for raw in page_rows):
                         raise CollectionError("history_row_outside_requested_block_range")
@@ -248,18 +309,33 @@ class EtherscanClient:
                     reason = str(exc)
                     break
             reason = reason or "page_limit_reached"
+            # Ascending account histories have a proven complete prefix before
+            # the final block of a full page window. Keep that prefix, then
+            # reread the boundary block (which may span pages). Binary splitting
+            # the original interval discards and downloads that prefix repeatedly.
+            if reason == "page_limit_reached" and action != "getLogs" and local:
+                blocks = [integer(row.get("blockNumber", row.get("block_number"))) for row in local]
+                boundary = blocks[-1]
+                if boundary > low and all(a <= b for a, b in zip(blocks, blocks[1:])):
+                    rows.extend(row for row, block in zip(local, blocks) if block < boundary)
+                    segments.append({"start_block": low, "end_block": boundary - 1,
+                                     "pages": self.max_pages, "complete": True})
+                    pending.append((boundary, high, depth))
+                    return
             can_split = low < high and depth < 32 and (reason in ("page_limit_reached", "pagination_did_not_advance") or "timeout" in reason.lower())
             if can_split:
                 middle = (low + high) // 2
-                fetch(low, middle, depth + 1)
-                fetch(middle + 1, high, depth + 1)
+                pending.append((middle + 1, high, depth + 1))
+                pending.append((low, middle, depth + 1))
             else:
                 rows.extend(local)
                 gaps.append({"start_block": low, "end_block": high, "reason": reason})
 
         if start_block > end_block:
             raise ValueError("inverted_block_range")
-        fetch(start_block, end_block)
+        pending = [(start_block, end_block, 0)]
+        while pending:
+            fetch(*pending.pop())
         return rows, {"action": action, "address": entity, "start_block": start_block, "end_block": end_block,
                       "request_ids": list(dict.fromkeys(ids)), "segments": segments, "gaps": gaps,
                       "complete": not gaps, "row_count": len(rows)}
@@ -274,6 +350,9 @@ def collect_dataset(targets: Iterable[dict[str, Any]], out: str | Path,
     """
     settings = dict(settings or {})
     settings = {**settings, **settings.get("etherscan", {})}
+    max_raw_rows = int(settings.get("max_raw_rows", 500000))
+    if max_raw_rows < 1:
+        raise ValueError("raw_row_budget_must_be_positive")
     graph_settings = settings.get("graph", {})
     hops = int(graph_settings.get("hops", settings.get("hops", 2)))
     fanouts = tuple(graph_settings.get("fanouts", settings.get("fanouts", (32, 16))))
@@ -308,9 +387,36 @@ def collect_dataset(targets: Iterable[dict[str, Any]], out: str | Path,
         return manifest
     client = EtherscanClient(out, settings)
     raw_rows: list[dict[str, Any]] = []
+    retained_source_rows = set()
     coverages = []
     eligible_targets = []
-    for target in targets:
+    roots = progress_bar(targets, mode=settings.get("progress", "auto"),
+                         desc="Etherscan root graphs", unit="root")
+    collection_started = time.perf_counter()
+    last_progress = 0.0
+    active_root = None
+
+    def report_progress(state):
+        nonlocal last_progress
+        now = time.perf_counter()
+        if now - last_progress < 1 and state["phase"] not in {"histories_complete", "complete", "incomplete"}:
+            return
+        last_progress = now
+        query = state["query"]
+        elapsed = now - collection_started
+        report = {**state, "updated_at": _now(), "roots_completed": len(coverages), "roots_total": len(targets),
+                  "active_root": active_root, "raw_rows_retained": len(raw_rows), "elapsed_seconds": elapsed,
+                  "mean_http_seconds": state["http_seconds"] / max(1, state["http_attempts"]),
+                  "effective_http_rps": state["http_attempts"] / max(0.001, elapsed)}
+        _save(Path(out) / "progress.json", report)
+        roots.set_postfix(req=state["http_attempts"], cache=state["cache_hits"],
+                          api_s=round(report["mean_http_seconds"], 2), wait_s=round(state["throttle_wait_seconds"], 1),
+                          addr=str(query.get("address", ""))[:10], action=query.get("action", ""),
+                          page=query.get("page", "-"), refresh=True)
+
+    client.on_progress = report_progress
+    for target in roots:
+        active_root = target["target"]
         cutoff = int(target["cutoff"])
         start_time = int(target.get("observation_start", cutoff - window_days * 86400))
         if start_time >= cutoff:
@@ -352,8 +458,12 @@ def collect_dataset(targets: Iterable[dict[str, Any]], out: str | Path,
                     entity_rows = []
                     for action in actions:
                         rows, source_coverage = client.history(action, entity, start_block, end_block)
+                        new_rows = [row for row in rows if (row["request_id"], row["source_row"]) not in retained_source_rows]
+                        if len(raw_rows) + len(new_rows) > max_raw_rows:
+                            raise CollectionError("raw_row_budget_exhausted")
                         entity_rows.extend(rows)
-                        raw_rows.extend(rows)
+                        raw_rows.extend(new_rows)
+                        retained_source_rows.update((row["request_id"], row["source_row"]) for row in new_rows)
                         details.append({**source_coverage, "hop": depth, "frontier_address": entity})
                         if action != "tokentx":
                             continue
@@ -431,6 +541,8 @@ def collect_dataset(targets: Iterable[dict[str, Any]], out: str | Path,
                             boundary_node_statistic_scope="selected_token_pool_emitters")
         coverages.append(coverage)
         eligible_targets.append({**target, "coverage": coverage})
+        client.report_progress("root_complete")
+    client.report_progress("histories_complete")
     # Etherscan logs supply timestamp; hydrate any receipt/RPC-style logs through block headers.
     for row in raw_rows:
         if integer(row.get("timeStamp", row.get("timestamp"))) is None and row.get("blockNumber"):
@@ -454,11 +566,15 @@ def collect_dataset(targets: Iterable[dict[str, Any]], out: str | Path,
     _jsonl(out / "targets_with_coverage.jsonl", eligible_targets)
     _save(out / "normalization_audit.json", audit)
     manifest.update(complete=all(item["complete"] for item in coverages) and audit["complete"],
+                    provider_policy={"rate_limit_rps": client.rate, "rolling_24h_limit": REQUESTS_PER_24H,
+                                     "quota_scope": "one_serial_collector_on_this_project", "quota_wait": "automatic"},
                     request_count=client.request_count, cached_request_count=client.cached_count,
                     event_count=len(bounded_events), coverage=coverages,
                     paths={"events": str((out / "events.jsonl").resolve()),
                            "coverage": str((out / "coverage.jsonl").resolve()),
                            "targets": str((out / "targets_with_coverage.jsonl").resolve()),
-                           "raw": str((out / "raw_requests").resolve())})
+                           "raw": str(((client.shared_cache or out) / "raw_requests").resolve())})
     _save(out / "manifest.json", manifest)
+    client.report_progress("complete" if manifest["complete"] else "incomplete")
+    roots.close()
     return manifest
