@@ -15,6 +15,7 @@ export interface TaskResult {
   status: string;
   score: number | null;
   reason: string | null;
+  reason_code?: string | null;
   sample_id: string | null;
   model_version: string | null;
   risk_band: 'low' | 'medium' | 'high' | null;
@@ -23,6 +24,7 @@ export interface TaskResult {
   calibration: string | null;
   explanation: string | null;
   forecast: { observation_days: 7; horizon_days: 90; swap_volume_threshold_usd: '1000'; score_target: 'continued_activity'; outcome: 'continued_activity' | 'low_volume_dead'; decision_policy_version: string } | null;
+  result_origin?: string | null;
 }
 export interface AnalysisResult {
   analysis_id: string;
@@ -34,6 +36,7 @@ export interface AnalysisResult {
   snapshot_id: string | null;
   stage: string;
   message: string | null;
+  progress?: AnalysisProgress | null;
   created_at: string | null;
   updated_at: string | null;
   cutoff: string | null;
@@ -45,19 +48,29 @@ export interface AnalysisResult {
   activity: ActivitySeries | null;
   transactions: TransactionPage | null;
 }
+export interface AnalysisProgress {
+  state: 'queued' | 'running' | 'retrying' | 'waiting_quota' | 'completed' | 'partial' | 'failed';
+  unit: 'requests' | 'pages' | 'records' | 'tasks';
+  completed: number;
+  total: number | null;
+  total_final: boolean;
+  records_collected: number;
+  retry_at: string | null;
+  task_id: TaskId | null;
+}
 export interface GraphView {
   sample_id: string;
   task_id: TaskId;
   nodes: Record<string, unknown>[];
   edges: Record<string, unknown>[];
-  context?: { sample_id: string; task_id: TaskId; model_nodes: number; model_edges: number; window: string; cutoff: string; version: string; sampling: string } | null;
+  context?: { sample_id: string; task_id: TaskId; model_nodes: number | null; model_edges: number | null; window: string; cutoff: string; version: string; sampling: string; model_sample_id?: string | null; view_scope?: string | null } | null;
 }
 export interface InformationField { key: string; label: string; value: string; hint: string }
 export interface SelectedPool { address: string; token0: string; token1: string; protocol: string; paired_asset: string }
 export interface BasicInformation {
   entity_type: string; name: string; symbol: string | null; decimals: number | null;
   balance_wei: string | null; total_supply_raw: string | null; state_time: string; state_block: number;
-  source_verification: string; compiler: string; deployment_transaction: string; deployer: string;
+  source_verification: string | null; compiler: string | null; deployment_transaction: string | null; deployer: string | null;
   pools: SelectedPool[]; fields: InformationField[];
 }
 export interface ActivityPoint {
@@ -66,7 +79,7 @@ export interface ActivityPoint {
 }
 export interface ActivitySeries { scope: Record<string, unknown>; points: ActivityPoint[] }
 export type LedgerCategory = 'external' | 'internal' | 'token_transfer' | 'pool_event';
-export interface AssetAmount { asset: string; raw: string; decimals: number }
+export interface AssetAmount { asset: string; raw: string; decimals: number; contract_address?: string | null; direction?: 'incoming' | 'outgoing' | 'self' | null }
 export interface LedgerRow {
   id: string; category: LedgerCategory; hash: string; block_number: number; block_time: string;
   from_address: string | null; to_address: string | null; direction: string | null;
@@ -76,9 +89,11 @@ export interface LedgerRow {
   gas_used: string | null; gas_price_wei: string | null;
   transaction_index: number | null; emitter: string | null; event_data: Record<string, string> | null;
 }
-export interface TransactionPage { items: LedgerRow[]; next_cursor: string | null; category: LedgerCategory; total: number }
+export interface TransactionPage { items: LedgerRow[]; next_cursor: string | null; category: LedgerCategory; total: number; revision?: number }
 export interface Capabilities {
   mode: string; analysis_enabled: boolean; feed_enabled: boolean; events_enabled?: boolean;
+  supported_families?: AnalysisFamily[];
+  score_mode?: string;
   profiles?: { family: AnalysisFamily; target: string; name: string; pools: string[] }[];
   tasks: { task_id: TaskId; entity: string; model_available: boolean; assessment_available?: boolean }[];
 }

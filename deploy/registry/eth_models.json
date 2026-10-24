@@ -1,0 +1,7 @@
+{
+  "registry_version": "eth-input-contracts-1",
+  "tasks": {
+    "phishing": "deploy/registry/eth_inputs/phishing",
+    "ponzi": "deploy/registry/eth_inputs/ponzi"
+  }
+}

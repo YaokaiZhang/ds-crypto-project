@@ -1,5 +1,31 @@
 # Website architecture: Vue/Vite and FastAPI
 
+Forecast live scope (2026-10-24): the shared worker now also collects real
+creation-based first-seven-day token/pool events, publishes facts/ledger/activity
+progressively and delays its bounded wallet/pool/token graph until collection
+settles. It uses the native Task A wallet builder and a user-authorized mock
+predictor with an independent replaceable 0.5 decision file. Historical USD
+stays missing; the eventual trained Forecast bundle/scaler remains pending.
+See [Forecast live adapter](FORECAST_LIVE_ADAPTER.md).
+
+ERC-20 live scope (2026-10-24): `token_scam` now uses the same durable queue,
+shared Etherscan budget, progressive complete 30-day facts/ledger/activity and
+delayed bounded display graph as ETH. Canonical Uniswap v2 token/pool verification
+and independent directed edge-aware Honeypot/Rug Pull input recipes remain
+task-specific. Unsupported inputs display Unavailable with a null score and
+small reason text. See [ERC-20 live adapter](TOKEN_LIVE_ADAPTER.md).
+
+The user-confirmed [2026-10-24 live backend revision](LIVE_BACKEND_IMPLEMENTATION.md)
+supersedes display/model graph equality and earlier online quota assumptions
+below. It separates recent display data (64 total nodes, up to 30 days) from frozen model samples,
+sets Etherscan 3/sec and 99,000/UTC-day, and defines actual progress, explicit
+failures and durable quota pauses. The [ETH live adapter](ETH_LIVE_ADAPTER.md)
+now implements real collection and a local durable worker, with temporary random
+scoring as explicitly requested. Frontend text and the original task selector
+remain; address statistics/ledger progressively cover the full 30 days; the bounded
+graph is published once those records settle. Model
+samples stay on the backend. Trained model serving remains pending.
+
 Design revision: 2026-10-12. Status: target website blueprint with initial empty
 frontend and runnable API/class templates delivered in
 [TEMPLATE_DEVELOPMENT.md](TEMPLATE_DEVELOPMENT.md); real integrations and deployed

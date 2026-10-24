@@ -1,0 +1,11 @@
+{
+  "policy_version": "forecast-mock-decision-0.5-v1",
+  "model_version": "forecast-wallet-graph-mock-v1",
+  "score_target": "continued_activity",
+  "threshold": 0.5,
+  "positive_outcome": "continued_activity",
+  "negative_outcome": "low_volume_dead",
+  "observation_days": 7,
+  "horizon_days": 90,
+  "swap_volume_threshold_usd": "1000"
+}

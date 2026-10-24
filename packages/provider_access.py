@@ -1,8 +1,8 @@
 """Project-local credentials and a selectable persistent collector quota.
 
-One shared instance coordinates in-process worker threads. This is not an
-account-wide or cross-process rate limiter. Other programs and
-machines using the same Etherscan account must be budgeted separately.
+Threads and cooperating processes using the same SQLite file share atomic
+reservations. This is not an account-wide limiter for unrelated programs or
+machines; those must use the same coordinator or be budgeted separately.
 """
 from contextlib import contextmanager
 import ast
@@ -90,7 +90,7 @@ class SerialRequestBudget:
 
     @contextmanager
     def request_slot(self):
-        """One shared instance reserves slots across in-process HTTP workers.
+        """Reserve slots across workers/processes using the same ledger file.
 
         The lock covers only the quota transaction, never the HTTP response.
         This permits concurrent in-flight requests while pacing all starts.
@@ -102,6 +102,9 @@ class SerialRequestBudget:
             with self._lock:
                 db = self._connect()
                 try:
+                    # Other API/worker processes may use this same account ledger.
+                    # Serialize the read/check/reserve sequence, not just UPDATEs.
+                    db.execute("BEGIN IMMEDIATE")
                     now = self.clock()
                     db.execute("DELETE FROM buckets WHERE minute + 60 <= ?", (now - 86400,))
                     count, oldest = db.execute("SELECT COALESCE(SUM(calls), 0), MIN(minute) FROM buckets").fetchone()

@@ -5,10 +5,20 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/presenters/graphDisplay.ts', import.meta.url), 'utf8');
 const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext } }).outputText;
-const { readDisplayGraph, layoutGraph, edgeAmount } = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+const { readDisplayGraph, layoutGraph, edgeAmount, graphRenderKey } = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
 const fixture = () => ({ sample_id: 'sample-1', task_id: 'phishing', nodes: [
   { id: 'root', ref: 'root-reference', is_root: true }, { id: 'other', ref: 'other-reference', role: 'wallet' },
 ], edges: [{ id: 'edge', source: 'root', target: 'other', relation: 'external_eth', kind: 'observed', direction: 'original', amount: '12345678901234567890.000001', asset: 'ETH' }] });
+
+test('progress and model provenance updates do not change the graph render identity', () => {
+  const input = fixture();
+  const key = graphRenderKey(input);
+  assert.equal(graphRenderKey(structuredClone(input)), key);
+  assert.equal(graphRenderKey({ ...input, context: { model_nodes: 512, model_edges: 4096 } }), key);
+  assert.notEqual(graphRenderKey({ ...input, sample_id: 'another-sample' }), key);
+  assert.notEqual(graphRenderKey({ ...input, edges: [] }), key);
+  assert.equal(graphRenderKey(null), '');
+});
 
 test('sample identity, original direction and exact amounts survive layout without mutation', () => {
   const input = fixture(); const before = structuredClone(input);
@@ -59,11 +69,22 @@ test('Fit bounds contain self-loops and large parallel bundles, including contro
 test('empty samples and documented density retain all supplied records', () => {
   assert.equal(layoutGraph(readDisplayGraph({ ...fixture(), nodes: [], edges: [] })).nodes.length, 0);
   const input = fixture();
-  input.nodes = Array.from({ length: 512 }, (_, i) => ({ id: `n${i}`, ref: `reference-${i}`, is_root: i === 0 }));
-  input.edges = Array.from({ length: 4096 }, (_, i) => ({ id: `e${i}`, source: `n${i % 512}`, target: `n${(i * 7 + 1) % 512}`, relation: 'call', kind: 'observed', direction: 'original' }));
+  input.nodes = Array.from({ length: 64 }, (_, i) => ({ id: `n${i}`, ref: `reference-${i}`, is_root: i === 0 }));
+  input.edges = Array.from({ length: 4096 }, (_, i) => ({ id: `e${i}`, source: `n${i % 64}`, target: `n${(i * 7 + 1) % 64}`, relation: 'call', kind: 'observed', direction: 'original' }));
   const scene = layoutGraph(readDisplayGraph(input));
-  assert.equal(scene.nodes.length, 512); assert.equal(scene.edges.length, 4096);
+  assert.equal(scene.nodes.length, 64); assert.equal(scene.edges.length, 4096);
   assert.ok(scene.edges.every(e => !/NaN|Infinity/.test(e.path)));
+});
+
+test('oversized legacy results are rejected before layout instead of freezing the page', () => {
+  for (const count of [65, 512, 4001]) {
+    const input = fixture();
+    input.nodes = Array.from({ length: count }, (_, i) => ({ id: `n${i}`, ref: `reference-${i}`, is_root: i === 0 }));
+    assert.throws(() => readDisplayGraph(input), /display limit.*new analysis/);
+  }
+  const input = fixture();
+  input.edges = Array.from({ length: 4097 }, (_, i) => ({ ...input.edges[0], id: `edge-${i}` }));
+  assert.throws(() => readDisplayGraph(input), /display limit/);
 });
 
 test('layout remains stable when API record order changes and supports irregular branches', () => {

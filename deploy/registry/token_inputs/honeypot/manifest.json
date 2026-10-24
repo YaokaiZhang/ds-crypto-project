@@ -1,0 +1,580 @@
+{
+  "bundle_version": "chainrisk-bundle-1.0",
+  "task_id": "honeypot",
+  "chain_id": 1,
+  "code_version": "chainrisk-0.1.0",
+  "schema_version": "chainrisk-graph-1.0",
+  "graph_view_version": "token-v2-recent-1.0",
+  "feature_names": [
+    "is_root",
+    "role_token",
+    "role_pool",
+    "role_deployer",
+    "role_lp",
+    "log_in_events",
+    "log_out_events",
+    "log_in_degree",
+    "log_out_degree",
+    "log_native_in",
+    "log_native_out",
+    "log_target_token_in",
+    "log_target_token_out",
+    "amount_missing_fraction",
+    "failed_fraction",
+    "success_missing_fraction",
+    "oldest_age",
+    "newest_age",
+    "mean_age",
+    "log_calls",
+    "log_buy_swaps",
+    "log_sell_swaps",
+    "log_mints",
+    "log_burns",
+    "log_lp_transfers",
+    "log_buy_target_amount",
+    "log_sell_target_amount",
+    "log_mint_target_amount",
+    "log_burn_target_amount",
+    "max_reserve_drop_fraction",
+    "reserve_history_missing",
+    "dex_amount_missing_fraction",
+    "swap_direction_missing_fraction",
+    "lp_flow_concentration",
+    "lp_flow_missing"
+  ],
+  "edge_feature_names": [
+    "log_event_count",
+    "log_amount",
+    "amount_missing_fraction",
+    "oldest_age",
+    "newest_age",
+    "mean_age",
+    "failed_fraction",
+    "success_missing_fraction",
+    "asset_native",
+    "asset_target_token",
+    "asset_other",
+    "log_buy_events",
+    "log_sell_events",
+    "log_dex_target_in",
+    "log_dex_target_out",
+    "dex_amount_missing_fraction",
+    "swap_direction_missing_fraction"
+  ],
+  "relation_names": [
+    "external_eth",
+    "internal_eth",
+    "call",
+    "failed_call",
+    "erc20_transfer",
+    "lp_transfer",
+    "swap",
+    "mint",
+    "burn",
+    "sync",
+    "pair_created",
+    "contains",
+    "deployed",
+    "participates"
+  ],
+  "add_reverse": true,
+  "graph_recipe": {
+    "builder": "token_v2",
+    "sampling": {
+      "seed": 20261020,
+      "hops": 2,
+      "fanouts": [
+        32,
+        16
+      ],
+      "max_nodes": 512,
+      "max_edges": 4096,
+      "window_days": 4100,
+      "sampling_mode": "token_recent_bounded_v1",
+      "rows_per_action": 100,
+      "pages_per_action": 3,
+      "mandatory_selected_pools": true
+    }
+  },
+  "input_dim": 35,
+  "edge_dim": 17,
+  "num_relations": 28,
+  "model_config": {
+    "architecture_id": "directed_edge_sage",
+    "layers": 2,
+    "hidden_dim": 256,
+    "dropout": 0.2,
+    "ignore_direction": false,
+    "ignore_relations": false,
+    "ignore_edge_attr": false
+  },
+  "consumed_inputs": [
+    "node_features",
+    "edge_index",
+    "root_index",
+    "edge_attributes",
+    "relation_ids"
+  ],
+  "threshold": 0.4413990080356598,
+  "label_meanings": {
+    "1": "honeypot_sell_restriction",
+    "0": "audited_task_specific_negative"
+  },
+  "positive_meaning": "task-specific pattern screening; model output is not definitive mechanism evidence",
+  "score_meaning": "uncalibrated_pattern_screening_score",
+  "calibration_status": "uncalibrated",
+  "training_manifest": {
+    "status": "trained",
+    "config": {
+      "config_version": "honeypot-recent-retrospective-1",
+      "task_id": "honeypot",
+      "experiment_mode": "supervised",
+      "seed": 20261020,
+      "graph": {
+        "builder_name": "token_v2",
+        "sampling_mode": "token_recent_bounded_v1",
+        "window_days": 4100,
+        "hops": 2,
+        "fanouts": [
+          32,
+          16
+        ],
+        "max_nodes": 512,
+        "max_edges": 4096,
+        "seed": 20261020,
+        "rows_per_action": 100,
+        "pages_per_action": 3
+      },
+      "collection": {
+        "allow_network": false,
+        "token_actions": [
+          "getLogs",
+          "txlist",
+          "txlistinternal"
+        ],
+        "page_size": 1000,
+        "rate_limit_rps": 3,
+        "retries": 3,
+        "max_pages": 10,
+        "max_requests": 10000
+      },
+      "model": {
+        "architecture_id": "directed_edge_sage",
+        "layers": 2,
+        "hidden_dim": 256,
+        "dropout": 0.2,
+        "ignore_direction": false,
+        "ignore_relations": false,
+        "ignore_edge_attr": false
+      },
+      "loss": {
+        "name": "weighted_bce"
+      },
+      "batch_size": 32,
+      "epochs": 200,
+      "patience": 25,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "min_delta": 0.0001,
+      "device": "cpu",
+      "training_as_of": null,
+      "fit_tabular_baselines": false,
+      "precision_at_k": 10,
+      "negative_meaning": "source-defined Trapdoor non-malicious or API-defined non-honeypot at capture; not universally benign",
+      "execution_status": "prepared_not_trained",
+      "label_scope": "source-defined retrospective Trapdoor plus captured Honeypot.is selected-pair detections",
+      "graph_view_version": "token-v2-recent-1.0",
+      "score_target": "current_or_historical_pattern_screening",
+      "temporal_protocol": "retrospective_source_anchors_not_incident_or_label_known_at",
+      "progress": "on"
+    },
+    "evaluation": {
+      "protocol": "train-validation-90-10-v1",
+      "primary_partition": "validation",
+      "primary_metric": "accuracy",
+      "independent_test_set": false,
+      "validation_reused_for_model_selection": true,
+      "interpretation": "validation performance after model/threshold selection; not an independent test estimate"
+    },
+    "dataset": {
+      "task_id": "honeypot",
+      "experiment_mode": "supervised",
+      "eligible_samples": 3456,
+      "excluded_by_status": {},
+      "graph_recipe": {
+        "builder": "token_v2",
+        "sampling": {
+          "seed": 20261020,
+          "hops": 2,
+          "fanouts": [
+            32,
+            16
+          ],
+          "max_nodes": 512,
+          "max_edges": 4096,
+          "window_days": 4100,
+          "sampling_mode": "token_recent_bounded_v1",
+          "rows_per_action": 100,
+          "pages_per_action": 3,
+          "mandatory_selected_pools": true
+        }
+      },
+      "partition_class_counts": {
+        "train": {
+          "0": 1206,
+          "1": 1904
+        },
+        "validation": {
+          "0": 134,
+          "1": 212
+        }
+      },
+      "negative_meaning": "task-specific admitted negative",
+      "leakage_checks": [
+        "entity/group partition isolation",
+        "graph cutoff/chain/target join",
+        "compatible feature and relation schemas",
+        "graph quality",
+        "train label availability when configured"
+      ],
+      "evaluation": {
+        "protocol": "train-validation-90-10-v1",
+        "primary_partition": "validation",
+        "primary_metric": "accuracy",
+        "independent_test_set": false,
+        "validation_reused_for_model_selection": true,
+        "interpretation": "validation performance after model/threshold selection; not an independent test estimate"
+      },
+      "neighborhood_overlap_counts": {
+        "train_validation": 3628
+      },
+      "heldout_targets_in_train_neighborhood": 1,
+      "message_passing": "disconnected ego graphs; no persistent address embeddings or label propagation"
+    },
+    "graph_recipe": {
+      "builder": "token_v2",
+      "sampling": {
+        "seed": 20261020,
+        "hops": 2,
+        "fanouts": [
+          32,
+          16
+        ],
+        "max_nodes": 512,
+        "max_edges": 4096,
+        "window_days": 4100,
+        "sampling_mode": "token_recent_bounded_v1",
+        "rows_per_action": 100,
+        "pages_per_action": 3,
+        "mandatory_selected_pools": true
+      }
+    },
+    "history": [
+      {
+        "epoch": 1,
+        "train_loss": 0.10053158095316105,
+        "validation_accuracy": 0.9739884393063584,
+        "validation_balanced_accuracy": 0.9746550267530274,
+        "validation_average_precision": 0.9984706687992219
+      },
+      {
+        "epoch": 2,
+        "train_loss": 0.06152010040112151,
+        "validation_accuracy": 0.9826589595375722,
+        "validation_balanced_accuracy": 0.9844762038862291,
+        "validation_average_precision": 0.9995396239664611
+      },
+      {
+        "epoch": 3,
+        "train_loss": 0.056879345640851564,
+        "validation_accuracy": 0.976878612716763,
+        "validation_balanced_accuracy": 0.9797592227541537,
+        "validation_average_precision": 0.9993943376050934
+      },
+      {
+        "epoch": 4,
+        "train_loss": 0.04698152613505673,
+        "validation_accuracy": 0.976878612716763,
+        "validation_balanced_accuracy": 0.9811320754716981,
+        "validation_average_precision": 0.9995850230515301
+      },
+      {
+        "epoch": 5,
+        "train_loss": 0.04828931710675697,
+        "validation_accuracy": 0.9826589595375722,
+        "validation_balanced_accuracy": 0.9858490566037736,
+        "validation_average_precision": 0.9994760721664369
+      },
+      {
+        "epoch": 6,
+        "train_loss": 0.044757104403536974,
+        "validation_accuracy": 0.9653179190751445,
+        "validation_balanced_accuracy": 0.9662067023373697,
+        "validation_average_precision": 0.9990361261253036
+      },
+      {
+        "epoch": 7,
+        "train_loss": 0.04034402274348477,
+        "validation_accuracy": 0.9826589595375722,
+        "validation_balanced_accuracy": 0.9803576457335962,
+        "validation_average_precision": 0.9993959596372782
+      },
+      {
+        "epoch": 8,
+        "train_loss": 0.03613730148106089,
+        "validation_accuracy": 0.9826589595375722,
+        "validation_balanced_accuracy": 0.9858490566037736,
+        "validation_average_precision": 0.9991962313173657
+      },
+      {
+        "epoch": 9,
+        "train_loss": 0.03746687381113191,
+        "validation_accuracy": 0.9826589595375722,
+        "validation_balanced_accuracy": 0.9858490566037736,
+        "validation_average_precision": 0.9992428947404586
+      },
+      {
+        "epoch": 10,
+        "train_loss": 0.03396279981443688,
+        "validation_accuracy": 0.976878612716763,
+        "validation_balanced_accuracy": 0.977013517319065,
+        "validation_average_precision": 0.999239866956047
+      },
+      {
+        "epoch": 11,
+        "train_loss": 0.032319167264974136,
+        "validation_accuracy": 0.9739884393063584,
+        "validation_balanced_accuracy": 0.9719093213179386,
+        "validation_average_precision": 0.9985260422469261
+      },
+      {
+        "epoch": 12,
+        "train_loss": 0.030609232534233696,
+        "validation_accuracy": 0.976878612716763,
+        "validation_balanced_accuracy": 0.9783863700366093,
+        "validation_average_precision": 0.9992763180011698
+      },
+      {
+        "epoch": 13,
+        "train_loss": 0.03021345154417475,
+        "validation_accuracy": 0.976878612716763,
+        "validation_balanced_accuracy": 0.9783863700366093,
+        "validation_average_precision": 0.9991138102012929
+      },
+      {
+        "epoch": 14,
+        "train_loss": 0.02467101677408067,
+        "validation_accuracy": 0.9739884393063584,
+        "validation_balanced_accuracy": 0.9746550267530274,
+        "validation_average_precision": 0.9983089569226228
+      },
+      {
+        "epoch": 15,
+        "train_loss": 0.022810333298096827,
+        "validation_accuracy": 0.976878612716763,
+        "validation_balanced_accuracy": 0.9797592227541537,
+        "validation_average_precision": 0.9990536665633866
+      },
+      {
+        "epoch": 16,
+        "train_loss": 0.0225005690087525,
+        "validation_accuracy": 0.9826589595375722,
+        "validation_balanced_accuracy": 0.9831033511686849,
+        "validation_average_precision": 0.9990379982019352
+      },
+      {
+        "epoch": 17,
+        "train_loss": 0.02341736932719728,
+        "validation_accuracy": 0.976878612716763,
+        "validation_balanced_accuracy": 0.9783863700366093,
+        "validation_average_precision": 0.9990946140977403
+      },
+      {
+        "epoch": 18,
+        "train_loss": 0.017387289217919582,
+        "validation_accuracy": 0.976878612716763,
+        "validation_balanced_accuracy": 0.9797592227541537,
+        "validation_average_precision": 0.9987731509084256
+      },
+      {
+        "epoch": 19,
+        "train_loss": 0.02482095375281633,
+        "validation_accuracy": 0.9797687861271677,
+        "validation_balanced_accuracy": 0.9807448606026471,
+        "validation_average_precision": 0.9990837914359649
+      },
+      {
+        "epoch": 20,
+        "train_loss": 0.019997420475883234,
+        "validation_accuracy": 0.976878612716763,
+        "validation_balanced_accuracy": 0.977013517319065,
+        "validation_average_precision": 0.998814811895524
+      },
+      {
+        "epoch": 21,
+        "train_loss": 0.01895326960311942,
+        "validation_accuracy": 0.976878612716763,
+        "validation_balanced_accuracy": 0.977013517319065,
+        "validation_average_precision": 0.9983280138378444
+      },
+      {
+        "epoch": 22,
+        "train_loss": 0.018306089696748615,
+        "validation_accuracy": 0.9797687861271677,
+        "validation_balanced_accuracy": 0.9793720078851028,
+        "validation_average_precision": 0.998533725838387
+      },
+      {
+        "epoch": 23,
+        "train_loss": 0.013964635036653118,
+        "validation_accuracy": 0.9710982658959537,
+        "validation_balanced_accuracy": 0.9681779780343565,
+        "validation_average_precision": 0.9982386884440994
+      },
+      {
+        "epoch": 24,
+        "train_loss": 0.026457504364190223,
+        "validation_accuracy": 0.9797687861271677,
+        "validation_balanced_accuracy": 0.9793720078851028,
+        "validation_average_precision": 0.9990186970714845
+      },
+      {
+        "epoch": 25,
+        "train_loss": 0.020571815222908834,
+        "validation_accuracy": 0.9797687861271677,
+        "validation_balanced_accuracy": 0.9793720078851028,
+        "validation_average_precision": 0.9991786944677171
+      },
+      {
+        "epoch": 26,
+        "train_loss": 0.019753180096805406,
+        "validation_accuracy": 0.976878612716763,
+        "validation_balanced_accuracy": 0.9742678118839763,
+        "validation_average_precision": 0.9988601672921368
+      },
+      {
+        "epoch": 27,
+        "train_loss": 0.016807417604803494,
+        "validation_accuracy": 0.9826589595375722,
+        "validation_balanced_accuracy": 0.9817304984511406,
+        "validation_average_precision": 0.9991303673605626
+      }
+    ],
+    "best_epoch": 2,
+    "best_validation_average_precision": 0.9995396239664611,
+    "threshold": 0.4413990080356598,
+    "pos_weight": 0.6334033613445378,
+    "metrics": {
+      "train": {
+        "rows": 3110,
+        "label_counts": {
+          "positive": 1904,
+          "negative": 1206
+        },
+        "accuracy": 0.97491961414791,
+        "balanced_accuracy": 0.9757170903187146,
+        "average_precision": 0.9988251461766877,
+        "roc_auc": 0.998126924899313,
+        "precision": 0.9866737739872068,
+        "recall": 0.9721638655462185,
+        "f1_positive": 0.9793650793650793,
+        "macro_f1": 0.9736989331251626,
+        "false_positive_rate": 0.020729684908789386,
+        "precision_at_k": 1.0,
+        "k": 10,
+        "precision_at_k_tie_policy": "stable sample order",
+        "threshold": 0.4413990080356598,
+        "confusion_matrix": {
+          "tn": 1181,
+          "fp": 25,
+          "fn": 53,
+          "tp": 1851
+        },
+        "confusion_matrix_labels": [
+          0,
+          1
+        ],
+        "confusion_matrix_axes": {
+          "rows": "actual",
+          "columns": "predicted"
+        },
+        "confusion_matrix_normalized_by_true_label": [
+          [
+            0.9792703150912107,
+            0.020729684908789386
+          ],
+          [
+            0.027836134453781514,
+            0.9721638655462185
+          ]
+        ]
+      },
+      "validation": {
+        "rows": 346,
+        "label_counts": {
+          "positive": 212,
+          "negative": 134
+        },
+        "accuracy": 0.9855491329479769,
+        "balanced_accuracy": 0.986834694452267,
+        "average_precision": 0.9995396239664611,
+        "roc_auc": 0.9992607716136299,
+        "precision": 0.9952153110047847,
+        "recall": 0.9811320754716981,
+        "f1_positive": 0.9881235154394299,
+        "macro_f1": 0.9848366654687924,
+        "false_positive_rate": 0.007462686567164179,
+        "precision_at_k": 1.0,
+        "k": 10,
+        "precision_at_k_tie_policy": "stable sample order",
+        "threshold": 0.4413990080356598,
+        "confusion_matrix": {
+          "tn": 133,
+          "fp": 1,
+          "fn": 4,
+          "tp": 208
+        },
+        "confusion_matrix_labels": [
+          0,
+          1
+        ],
+        "confusion_matrix_axes": {
+          "rows": "actual",
+          "columns": "predicted"
+        },
+        "confusion_matrix_normalized_by_true_label": [
+          [
+            0.9925373134328358,
+            0.007462686567164179
+          ],
+          [
+            0.018867924528301886,
+            0.9811320754716981
+          ]
+        ]
+      }
+    },
+    "calibration_status": "uncalibrated",
+    "final_report": {
+      "protocol": "train-validation-90-10-v1",
+      "primary_partition": "validation",
+      "primary_metric": "accuracy",
+      "independent_test_set": false,
+      "validation_reused_for_model_selection": true,
+      "interpretation": "validation performance after model/threshold selection; not an independent test estimate",
+      "accuracy": 0.9855491329479769,
+      "balanced_accuracy": 0.986834694452267,
+      "rows": 346,
+      "label_counts": {
+        "positive": 212,
+        "negative": 134
+      }
+    }
+  },
+  "weights_file": "model.pt",
+  "scaler_file": "scaler.json",
+  "weights_sha256": "4d2327ecf84a6da6617d162012b56f67417470b09b63e27ebfd1adcf71204d3d",
+  "scaler_sha256": "32ebf65c4b4f4216b9cf20b2c811c6bc55cb0712d441749b86af6c3f80de1937",
+  "bundle_sha256": "6c18c414ab9f58966f8774c6293e0859528b33177611e809696e4d05c7c05fed",
+  "model_version": "honeypot-6c18c414ab9f5896"
+}

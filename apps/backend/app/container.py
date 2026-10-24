@@ -17,6 +17,7 @@ class Container:
     registry: ModelRegistry
     demo: object | None = None
     feed_store: object | None = None
+    real: object | None = None
 
     def close(self) -> None:
         self.registry.close()
@@ -39,6 +40,15 @@ def build_container(settings: Settings) -> Container:
         from .demo.service import DemoAnalysisService
         services.demo = DemoAnalysisService(settings)
         services.analysis = services.demo
+    if settings.analysis_mode == 'eth_live_mock':
+        from .adapters.analysis_store import AnalysisStore
+        from .adapters.etherscan_budget import EtherscanBudget
+        from .application.live_analysis import LiveAnalysisService
+        store = AnalysisStore(settings.analysis_database_path)
+        budget = EtherscanBudget(settings.etherscan_quota_path, rate=settings.etherscan_rate_limit,
+                                limit=settings.etherscan_daily_limit)
+        services.real = LiveAnalysisService(store, budget, settings)
+        services.analysis = services.real
     if settings.feed_enabled:
         from .adapters.feed_store import FeedStore
         from .application.live_feed import LiveFeedService

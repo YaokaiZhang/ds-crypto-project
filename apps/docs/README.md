@@ -8,6 +8,10 @@ These documents describe target application behavior and the current frontend pr
   synthetic backend, staged jobs, UI integration, configuration and checks.
 - [Ethereum homepage feed](FEED_INTEGRATION.md): real RPC source, separate collector,
   summary fields, replayable SSE, recovery and configuration.
+- [ERC-20 live adapter](TOKEN_LIVE_ADAPTER.md): complete progressive 30-day token/pool
+  observations, bounded display graph, frozen model inputs and simulated scores.
+- [Forecast live adapter](FORECAST_LIVE_ADAPTER.md): real first-week observations,
+  wallet/pool/token input, delayed graph and replaceable 0.5 mock decision policy.
 - [Website architecture](WEBSITE_ARCHITECTURE.md): Vue/Vite, FastAPI, workers,
   API contracts, deployment, and replaceable themes/icons.
 - [Visual direction brief](VISUAL_DIRECTION_BRIEF.md): reference analysis,
@@ -29,6 +33,9 @@ These documents describe target application behavior and the current frontend pr
 - [Earlier frontend and serving review](FRONTEND_AND_SERVING_DESIGN_REVIEW.md):
   background analysis; the architecture and page specifications above govern
   the current design.
+
+- [Live backend contract and implementation status](LIVE_BACKEND_IMPLEMENTATION.md):
+  confirmed ETH/ERC-20 scopes, quota, errors, risk bands and actual progress.
 
 Research, data/model contracts, and the mixed Task B codebase/serving plan
 remain in the project-level `docs/` directory.

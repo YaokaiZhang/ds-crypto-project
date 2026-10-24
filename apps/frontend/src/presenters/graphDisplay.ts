@@ -44,6 +44,10 @@ function timestamp(value: unknown): string | null {
 }
 export function readDisplayGraph(input: GraphView): DisplayGraph {
   if (!Array.isArray(input.nodes) || !Array.isArray(input.edges)) throw new Error('Graph nodes or edges are missing.');
+  // Reject oversized legacy/API results before allocating layout state or SVG.
+  if (input.nodes.length > 64 || input.edges.length > 4096) {
+    throw new Error('This result exceeds the current graph display limit. Start a new analysis.');
+  }
   if (!Object.prototype.hasOwnProperty.call(taskNames, input.task_id)) throw new Error('The graph task is unsupported.');
   const nodeIds = new Set<string>();
   const nodes = input.nodes.map(value => {
@@ -78,6 +82,11 @@ export function readDisplayGraph(input: GraphView): DisplayGraph {
     } satisfies DisplayEdge;
   });
   return { sampleId: requiredText(input.sample_id, 'the sample identity'), taskId: input.task_id, nodes, edges };
+}
+
+/** Progress, scores and provenance updates must not replay a stable graph. */
+export function graphRenderKey(input: GraphView | null | undefined): string {
+  return input ? JSON.stringify([input.sample_id, input.task_id, input.nodes, input.edges]) : '';
 }
 
 export const shortRef = (value: string) => value.length > 18 ? `${value.slice(0, 7)}…${value.slice(-5)}` : value;

@@ -69,12 +69,14 @@ temp/
 *.sqlite3-journal
 *.sqlite3-wal
 *.sqlite3-shm
+*.lock
 
 # Local agent and design-tool state
 .agents/
 .claude/
 .codex/
 .impeccable/
+.vscode/
 
 # OS metadata and editor scratch files
 .DS_Store
@@ -85,3 +87,6 @@ Desktop.ini
 *.swp
 *.swo
 *~
+
+# Backend-local server credentials
+/apps/backend/local_secrets.py

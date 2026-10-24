@@ -31,6 +31,82 @@ reports and keep online assessments distinct from offline benchmarks.
 
 ### System-wide rules
 
+Online-service revision confirmed on 2026-10-24: ETH address facts, Flow
+Activity and the Transaction Ledger use the complete fixed preceding 30-day
+root-address window. They update incrementally as source batches arrive;
+7D/30D controls select the visible activity range. Display graph selection is
+independent: at most 64 total nodes, with root plus first hop at most 48 and
+second hop at most 16, and 4,096 aggregated directed relations. Neighbor data
+is used only for that graph, not added to root-address ledger/flow statistics.
+Both hops may search the same 30-day maximum. Publish the graph after root
+history and token-amount enrichment settle; progress, score and model metadata
+updates must not replay or reset an unchanged graph. No incompleteness badge
+is added to the graph. This latest user-confirmed revision supersedes the
+previous shared truncated-window requirement. Frozen per-task model sampling
+and backend input artifacts remain separate; no model-graph UI switch.
+Etherscan has one process-shared 3-start/second and
+99,000-attempt UTC-calendar-day budget; RPC/feed are outside this budget.
+Reject new work at exhaustion, durably pause accepted work and resume after
+00:00 UTC without changing cutoff. Empty/incomplete data, applicability and
+provider/model failures remain explicit, unscored states. Actual collection
+counters supplement the backend-driven stage/SSE UI. Per-model display bands
+are separate from trained binary thresholds. See
+[live backend contract and implementation status](apps/docs/LIVE_BACKEND_IMPLEMENTATION.md).
+This revises online orchestration/display policy, not training recipes, weights,
+labels or historical evaluation. ETH now has a single-host durable SQLite job
+queue, real provider collection and fenced analysis workers. At the user's
+explicit request, opt-in eth_live_mock mode sends real, recipe/scaler-compatible
+inputs to the unavailable local predictor target and generates persisted random
+scores. These are tagged simulated in API/artifacts; the frontend keeps its
+original text. This exception never admits random scores for missing/invalid
+data and never advertises real model availability. Trained serving remains
+pending; the subsequently requested Forecast live adapter is described below.
+
+ERC-20 live implementation requested on 2026-10-24 extends the same durable
+queue/quota/progress and simulated predictor boundary to token_scam. Token
+facts, Transfer ledger, selected-pool event ledger and daily activity collect
+the complete fixed preceding 30 days progressively. The independently bounded
+64-node display graph (root/first hop at most 48, second hop at most 16) is
+published after those logs settle. Resolve ERC-20 state and canonical Ethereum
+Uniswap v2 pool membership at the frozen cutoff. Discover either indexed token
+position and support non-WETH quote assets; arbitrary DEX/v3 pools remain
+outside both current trained recipes. Missing supported pools or incompatible
+input yields Unavailable, a null score and the existing small reason text;
+valid token facts/activity remain useful. Preserve each token model's frozen
+recent collection, graph, scaler and directed edge-aware input contract,
+including separate 4100/2771-day model recipe windows, independently of the
+30-day display. No training/weights/labels are changed. See
+[ERC-20 live adapter](apps/docs/TOKEN_LIVE_ADAPTER.md).
+
+Forecast live revision requested on 2026-10-24 shares the durable worker,
+progressive observations/ledger, delayed bounded display graph and provider
+quota/cache behavior. Preserve Task A's creation-based first-seven-day window
+and wallet--Swap.sender activity-->pool--membership-->token graph, excluding
+all post-cutoff events/outcomes. Initial live pool discovery supports the same
+verified canonical Ethereum Uniswap v2 subset as ERC-20, including non-WETH
+quotes; the research graph's v3 source adapter is not integrated. Reverify
+mutable state at the first-week cutoff. Collect the full observation ledger
+independent of display limits, publish the graph after collection settles,
+and return Unavailable/reasons for unsupported, empty or immature inputs.
+At the user's explicit request, send real label-free wallet graph input to the
+unavailable local mock target, then persist one random continued_activity score.
+Keep an independent replaceable 0.5 temporary decision policy: below is
+low_volume_dead; at/above is continued_activity. No Scam risk bands apply.
+Historical USD remains missing when unavailable; no current-price substitution.
+The unscaled temporary packet explicitly awaits a Forecast deployment bundle
+and training-fitted scaler; it never claims trained inference. This changes
+online serving only, not Task A labels, graph recipes, fitted parameters or
+historical splits/results. See [Forecast live adapter](apps/docs/FORECAST_LIVE_ADAPTER.md).
+
+Online display refinement requested on 2026-10-24 publishes confirmed basic
+state and the fixed 30-day observation bounds before activity collection
+finishes; history-derived facts then update as observations arrive. ETH external ledger amounts additionally join cutoff-bound Etherscan
+ERC-20 transfers by transaction hash and identify assets by token contract and
+direction; a zero native value without identified amounts displays Unknown.
+Original native value remains available in record details. This extends the
+display-data contract only; token observations do not alter ETH graphs, native
+flow totals or frozen model inputs. See [the ETH adapter guide](apps/docs/ETH_LIVE_ADAPTER.md).
+
 Unified pipeline revision requested on 2026-10-23 supersedes the earlier
 task-specific public stages and data-only all promises below. All four Scam
 tasks expose sources, collect (including graph construction), prepare, train,

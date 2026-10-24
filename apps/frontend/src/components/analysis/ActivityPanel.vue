@@ -6,7 +6,7 @@ import { formatWei } from '@/presenters/format';
 import type { ActivitySeries, AnalysisFamily, ActivityPoint } from '@/api/contracts';
 const props = defineProps<{ title: string; family: AnalysisFamily; activity?: ActivitySeries | null; loading?: boolean }>();
 const range = ref(props.family === 'forecast' ? 7 : 30);
-const points = computed(() => props.activity?.points.slice(-range.value) || []);
+const points = computed(() => props.family === 'forecast' || range.value === 30 ? props.activity?.points || [] : props.activity?.points.slice(-range.value) || []);
 const dates = computed(() => points.value.map(point => point.date));
 function counts(label: string, key: 'external_count' | 'transfer_count' | 'swap_count' | 'mint_count' | 'burn_count') {
   return { label, values: points.value.map(point => point.covered ? point[key] : null), display: points.value.map(point => point.covered && point[key] !== null ? String(point[key]) : 'Unavailable') };

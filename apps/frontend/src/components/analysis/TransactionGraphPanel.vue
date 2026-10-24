@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import type { GraphView } from '@/api/contracts';
 import { createGraphRenderer, type GraphRenderer } from '@/presenters/graph';
-import { readDisplayGraph, taskNames, type GraphContext } from '@/presenters/graphDisplay';
+import { graphRenderKey, readDisplayGraph, taskNames, type GraphContext } from '@/presenters/graphDisplay';
 import { resolveChartTheme } from '@/design/chartTheme';
 
 const props = withDefaults(defineProps<{ graph?: GraphView | null; context?: GraphContext | null; loading?: boolean; error?: string | null }>(), { graph: null, context: null, loading: false, error: null });
@@ -20,7 +20,7 @@ const contextMatches = computed(() => props.context && props.graph && props.cont
 const provenance = computed(() => contextMatches.value ? props.context : null);
 const failure = computed(() => props.error || parsed.value.error);
 function count(value: number | undefined) { return value !== undefined && Number.isSafeInteger(value) && value >= 0 ? value.toLocaleString('en-US') : 'Not supplied'; }
-watch([host, () => props.graph], () => {
+watch([host, () => graphRenderKey(props.graph)], () => {
   if (mountedHost !== host.value) { renderer?.dispose(); renderer = undefined; mountedHost = host.value; }
   if (!host.value || !props.graph || !parsed.value.graph) return;
   if (!renderer) { renderer = createGraphRenderer(); renderer.mount(host.value); }
@@ -50,7 +50,7 @@ onBeforeUnmount(() => renderer?.dispose());
           <div><dt>Observation window</dt><dd>{{ provenance?.window || 'Not supplied' }}</dd></div>
           <div><dt>Assessment cutoff</dt><dd>{{ provenance?.cutoff || 'Not supplied' }}</dd></div>
           <div><dt>Graph version</dt><dd>{{ provenance?.version || 'Not supplied' }}</dd></div>
-          <div><dt>Sampling / display subset</dt><dd>{{ provenance?.sampling || 'Not supplied. Full-history coverage is not established.' }}</dd></div>
+          <div><dt>Sampling / display subset</dt><dd>{{ provenance?.sampling || 'Not supplied.' }}</dd></div>
         </dl>
       </details>
     </template>

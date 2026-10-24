@@ -1,0 +1,10 @@
+{
+  "policy_version": "scam-display-bands-2026-10-24-v1",
+  "score_interpretation": "Uncalibrated task-specific model score; not a probability of fraud.",
+  "models": {
+    "phishing": {"model_version": "phishing-542e0cb0aebaf59c", "L": 0.600, "H": 0.950},
+    "ponzi": {"model_version": "ponzi-0391bc0785180121", "L": 0.600, "H": 0.930},
+    "honeypot": {"model_version": "honeypot-6c18c414ab9f5896", "L": 0.200, "H": 0.700},
+    "rug_pull": {"model_version": "rug_pull-642ed08bc29e8d3c", "L": 0.400, "H": 0.850}
+  }
+}

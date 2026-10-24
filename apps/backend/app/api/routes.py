@@ -13,11 +13,17 @@ Services = Annotated[Container, Depends(get_container)]
 
 @router.get('/health/live', tags=['health'])
 def live(services: Services):
-    return {'status': 'ok', 'mode': 'demo' if services.demo else 'template'}
+    return {'status': 'ok', 'mode': 'eth_live_mock' if services.real else 'demo' if services.demo else 'template'}
 
 @router.get('/health/ready', tags=['health'], responses={503: {'description': 'Template integrations are unavailable'}})
 async def ready(services: Services):
     feed_ready = bool(services.feed_store and services.feed_store.snapshot(1)['status'] == 'live')
+    if services.real:
+        ready = services.real.capabilities()['analysis_enabled']
+        return JSONResponse(status_code=200 if ready else 503, content={
+            'status': 'ready' if ready else 'not_ready', 'mode': 'eth_live_mock',
+            'components': {'analysis_worker': services.real.store.worker_alive(), 'inference': False,
+                           'simulated_scoring': True, 'feed': feed_ready}})
     if services.demo:
         return {'status': 'ready', 'mode': 'demo', 'components': {'analysis': True, 'inference': False, 'feed': feed_ready}}
     return JSONResponse(status_code=503, content={'status': 'not_ready', 'mode': 'template',
@@ -25,6 +31,8 @@ async def ready(services: Services):
 
 @router.get('/capabilities', tags=['capabilities'])
 def capabilities(services: Services):
+    if services.real:
+        return {**services.real.capabilities(), 'feed_enabled': services.feed_store is not None}
     if services.demo:
         return {**services.demo.capabilities(), 'feed_enabled': services.feed_store is not None}
     return {'mode': 'template', 'analysis_enabled': False, 'feed_enabled': services.feed_store is not None,
@@ -53,7 +61,7 @@ async def get_activity(analysis_id: UUID, services: Services):
 async def get_transactions(analysis_id: UUID, services: Services,
                            limit: Annotated[int, Query(ge=1, le=100)] = 30, cursor: str | None = None,
                            category: Annotated[str | None, Query(pattern='^(external|internal|token_transfer|pool_event)$')] = None):
-    if services.demo:
+    if services.demo or services.real:
         return await services.analysis.transactions(str(analysis_id), limit, cursor, category)
     return await services.analysis.transactions(str(analysis_id), limit, cursor)
 

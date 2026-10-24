@@ -186,13 +186,14 @@ class RecentHistoryCollector:
                 str(row.get('input') or '0x').lower(), str(row.get('isError')), str(row.get('errCode', '')),
                 str(row.get('original_trace_id', row.get('traceId'))) == '0')
 
-    def _scope_internal_records(self, rows, traces):
+    @classmethod
+    def _scope_internal_records(cls, rows, traces):
         groups = defaultdict(set)
         for row in rows:
             original = row.get('original_trace_id', row.get('traceId'))
             if row.get('source_kind') == 'internal' and original and row.get('hash'):
                 tx_hash = str(row['hash']).lower()
-                groups[(tx_hash, original)].add(self._internal_identity(row))
+                groups[(tx_hash, original)].add(cls._internal_identity(row))
         for (tx_hash, _), identities in groups.items():
             if len(identities) < 2:
                 continue
@@ -211,7 +212,7 @@ class RecentHistoryCollector:
                 continue
             if not row.get('original_trace_id', row.get('traceId')):
                 continue  # Missing trace metadata remains an explicit invalid row.
-            identity = self._internal_identity(row)
+            identity = cls._internal_identity(row)
             key = (row.get('_history_address', row['request_id']), tx_hash, identity)
             ordinal = occurrences[key]
             occurrences[key] += 1

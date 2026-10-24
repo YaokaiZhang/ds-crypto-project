@@ -1,6 +1,12 @@
 # Deployment and inference
 
-This directory is reserved for independent inference and deployment. Deployment configuration remains a placeholder. A runnable API shell and worker class/method templates now exist in `apps/backend/`; real analysis/feed processing and approved Task B model bundles remain unavailable.
+This directory owns deployment configuration. Container/proxy/startup files
+remain pending. A runnable API, analysis templates and real homepage feed exist
+in `apps/backend/`. ETH now has real collection and a durable local worker with
+explicit temporary simulated scoring; trained model serving remains pending.
+`registry/risk_policies.json` records the user-confirmed per-model
+display bands, without activating a live model service. See the
+[live backend contract and status](../apps/docs/LIVE_BACKEND_IMPLEMENTATION.md).
 
 | Directory | Planned responsibility |
 |---|---|

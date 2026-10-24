@@ -5,6 +5,7 @@ import type { TaskResult } from '@/api/contracts';
 const props = defineProps<{ result?: TaskResult; loading?: boolean }>();
 const outcome = computed(() => props.result?.forecast
   ? props.result.forecast.outcome === 'continued_activity' ? 'Continued activity' : 'Low volume'
+  : props.result && !['pending', 'queued', 'running', 'predicting'].includes(props.result.status) ? 'Unavailable'
   : props.loading ? 'Evaluating' : 'Unavailable');
 const scoreWidth = computed(() => `${Math.max(0, Math.min(1, props.result?.score ?? 0)) * 100}%`);
 </script>
@@ -19,7 +20,7 @@ const scoreWidth = computed(() => `${Math.max(0, Math.min(1, props.result?.score
         </div>
         <span class="risk-class" role="status">{{ outcome }}</span>
       </div>
-      <p class="panel-footnote">Continued-activity score · uncalibrated</p>
+      <p class="panel-footnote">{{ result?.reason || 'Continued-activity score · uncalibrated' }}</p>
     </div>
   </section>
   <section class="risk-panel glass-pane" aria-label="Forecast details">

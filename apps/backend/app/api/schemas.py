@@ -46,6 +46,7 @@ class TaskResult(ApiModel):
     status: str
     score: float | None = Field(default=None, ge=0, le=1)
     reason: str | None = None
+    reason_code: str | None = None
     sample_id: str | None = None
     model_version: str | None = None
     risk_band: Literal['low', 'medium', 'high'] | None = None
@@ -54,6 +55,7 @@ class TaskResult(ApiModel):
     calibration: str | None = None
     explanation: str | None = None
     forecast: ForecastDefinition | None = None
+    result_origin: str | None = None
 
     @model_validator(mode='after')
     def validate_score_provenance(self) -> 'TaskResult':
@@ -70,6 +72,28 @@ class TaskResult(ApiModel):
             raise ValueError('Forecast semantics belong only to continued_activity')
         return self
 
+class AnalysisProgress(ApiModel):
+    """Actual work counters within a stage, never a fabricated overall percent."""
+    state: Literal['queued', 'running', 'retrying', 'waiting_quota', 'completed', 'partial', 'failed'] = 'running'
+    unit: Literal['requests', 'pages', 'records', 'tasks'] = 'requests'
+    completed: int = Field(default=0, ge=0)
+    total: int | None = Field(default=None, ge=0)
+    total_final: bool = False
+    records_collected: int = Field(default=0, ge=0)
+    retry_at: AwareDatetime | None = None
+    task_id: TaskId | None = None
+
+    @model_validator(mode='after')
+    def validate_work(self) -> 'AnalysisProgress':
+        if self.total is not None and self.completed > self.total:
+            raise ValueError('Completed work exceeds the discovered work count')
+        if self.total_final and self.total is None:
+            raise ValueError('A final work denominator is required')
+        if self.state == 'waiting_quota' and self.retry_at is None:
+            raise ValueError('Quota pauses require an explicit resume time')
+        return self
+
+
 class AnalysisResult(ApiModel):
     analysis_id: str
     status: str
@@ -80,6 +104,7 @@ class AnalysisResult(ApiModel):
     snapshot_id: str | None = None
     stage: str = 'queued'
     message: str | None = None
+    progress: AnalysisProgress | None = None
     created_at: AwareDatetime | None = None
     updated_at: AwareDatetime | None = None
     cutoff: AwareDatetime | None = None
@@ -113,22 +138,24 @@ class BasicInformation(ApiModel):
     total_supply_raw: str | None = None
     state_time: AwareDatetime
     state_block: int
-    source_verification: str
-    compiler: str
-    deployment_transaction: str
-    deployer: Address
+    source_verification: str | None
+    compiler: str | None
+    deployment_transaction: str | None
+    deployer: Address | None
     pools: list[SelectedPool] = Field(default_factory=list)
     fields: list[InformationField]
 
 class GraphContext(ApiModel):
     sample_id: str
     task_id: TaskId
-    model_nodes: int
-    model_edges: int
+    model_nodes: int | None
+    model_edges: int | None
     window: str
     cutoff: AwareDatetime
     version: str
     sampling: str
+    view_scope: str | None = None
+    model_sample_id: str | None = None
 
 class GraphView(ApiModel):
     sample_id: str
@@ -156,6 +183,8 @@ class AssetAmount(ApiModel):
     asset: str
     raw: str
     decimals: int
+    contract_address: Address | None = None
+    direction: Literal['incoming', 'outgoing', 'self'] | None = None
 
 class LedgerRow(ApiModel):
     id: str
@@ -187,6 +216,7 @@ class TransactionPage(ApiModel):
     next_cursor: str | None = None
     category: str | None = None
     total: int = 0
+    revision: int = Field(default=0, ge=0)
 
 AnalysisResult.model_rebuild()
 

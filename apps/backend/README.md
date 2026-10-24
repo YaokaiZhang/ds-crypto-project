@@ -1,5 +1,28 @@
 # Chainrisk backend
 
+ETH/ERC-20/Forecast real-data collection and the durable local worker are now available in
+`ANALYSIS_MODE=eth_live_mock`, with a temporary random-score adapter explicitly
+requested by the user. Run `.venv/bin/python scripts/start-eth-live.py` from the
+repository root to start API/worker/frontend. See [ETH live adapter](../docs/ETH_LIVE_ADAPTER.md)
+for the model input contract, real-address checks and restart/configuration.
+The frontend retains its original text and a recent graph capped at 64 nodes
+and at most 30 days. Model provenance stays
+explicit in API/artifacts; trained inference remains unavailable.
+
+The [2026-10-24 live backend contract](../docs/LIVE_BACKEND_IMPLEMENTATION.md)
+records confirmed serving behavior and the current implementation boundary.
+Backend-local credential loading, shared Etherscan pacing (3/sec, 99,000 per
+UTC day), HTTP error handling, RPC address classification, risk policies and
+progress DTO/UI support are implemented and tested. ETH now connects these
+components through a durable local worker. ERC-20 follows the same complete
+progressive 30-day ledger/activity and bounded delayed-graph principles; see
+[ERC-20 live adapter](../docs/TOKEN_LIVE_ADAPTER.md). Unsupported assets/pools
+show Unavailable with a reason and no score. Forecast uses its own real first-week
+window and wallet/pool/token graph, with an independently configurable 0.5 mock
+decision threshold; see [Forecast live adapter](../docs/FORECAST_LIVE_ADAPTER.md).
+Trained model serving remains unimplemented; Forecast's deployment scaler/bundle
+is still pending and its temporary input declares unscaled preprocessing.
+
 An explicitly enabled local analysis adapter is now available. Run
 `ANALYSIS_MODE=demo .venv/bin/python -m uvicorn app.main:app --app-dir apps/backend`
 from the repository root to exercise both workbenches with backend phase delays,
@@ -82,8 +105,12 @@ models and deterministic transformations remain in `packages/chainrisk`; do not
 copy research trainers into this app. Freeze graph/sample identity before graph
 presentation and prediction. Model loading belongs to the analysis worker.
 
-`.env.example` lists server-only variables. The template reads actual process
-environment variables; it does not automatically load that example file.
+`.env.example` lists server-only variables and is not automatically loaded.
+Provider credentials use process environment first, then literal strings in
+Git-ignored `apps/backend/local_secrets.py`; an explicitly empty environment
+value disables fallback. The backend-local copy has mode 0600. No file is
+executed to read credentials. Keep one `ETHERSCAN_QUOTA_FILE` for each account,
+shared by every cooperating API/worker and concurrent local collector process.
 
 ## Checks and worker entrypoints
 
@@ -93,7 +120,8 @@ uv run --frozen --extra serving python -m apps.backend.app.workers.analysis --he
 uv run --frozen --extra serving python -m apps.backend.app.workers.feed --help
 ```
 
-The analysis worker still fails fast with an unimplemented operation. The feed
+The analysis worker fails fast in template mode; eth_live_mock enables the
+documented real ETH/ERC-20 worker. The feed
 worker requires `FEED_ENABLED=true`; it then collects real mainnet transactions.
 See [template development](../docs/TEMPLATE_DEVELOPMENT.md) and
 [website architecture](../docs/WEBSITE_ARCHITECTURE.md).
