@@ -1,5 +1,13 @@
 # Live backend contract and implementation status
 
+Serving revision (2026-10-25): the model server owns score-to-label policies;
+the backend validates and forwards returned labels. Input-only configuration now
+ships in `apps/backend/config/`; backend runtime does not include or import
+`deploy/`. Eligible live-mock inputs return 0.999 / High Risk for Scam or
+0.999 / Continued activity for Forecast, with explicit simulated provenance.
+This supersedes earlier random-score and backend-policy descriptions below.
+See [MODEL_SERVICE_CONTRACT.md](MODEL_SERVICE_CONTRACT.md).
+
 User-confirmed online-service revision: 2026-10-24. This document supersedes
 earlier display/model identity and online quota plans where they differ. It
 does not change training inputs, fitted parameters or historical evaluation.
@@ -21,8 +29,8 @@ jobs globally on this host. See [ETH live adapter](ETH_LIVE_ADAPTER.md) for laun
 commands and real-address verification.
 
 The model boundary is temporarily simulated at the user's explicit request:
-send compatible input to a fixed unavailable loopback target, then generate a
-random score once and persist it. API/artifacts mark simulated provenance and
+send compatible input to a fixed loopback test target, then validate and persist
+the fixed service-shaped 0.999 response and supplied label. API/artifacts mark simulated provenance and
 capabilities keep model_available=false. The user requested the original front
 end text and one recent display graph; no simulation badges or graph-scope switch.
 ERC-20 now shares the live queue/worker/quota boundary and follows the same
@@ -32,8 +40,8 @@ directed edge-aware model inputs are documented in
 [ERC-20 live adapter](TOKEN_LIVE_ADAPTER.md). Unsupported assets/pools and empty
 or incompatible model inputs remain Unavailable with a null score and reason.
 Forecast now shares these live foundations with its own creation-based
-first-seven-day window, wallet/pool/token input and independent temporary 0.5
-binary decision policy. See [Forecast live adapter](FORECAST_LIVE_ADAPTER.md).
+first-seven-day window, wallet/pool/token input and fixed Continued activity
+mock response. The model server owns its eventual decision policy. See [Forecast live adapter](FORECAST_LIVE_ADAPTER.md).
 Its packet explicitly awaits the Forecast bundle/scaler; historical USD stays
 missing when unavailable. Real trained model serving and multi-host
 PostgreSQL deployment remain pending. Template mode still returns 501; static

@@ -11,7 +11,7 @@ import httpx
 from apps.backend.checks.test_live_token import TokenChain, ROOT, POOL, WALLET, STAMP, word, log
 from apps.backend.app.adapters.analysis_rpc import AnalysisRpc
 from apps.backend.app.adapters.etherscan_client import BackendEtherscan
-from apps.backend.app.adapters.forecast_predictor import ForecastMockPredictor, ForecastPolicy
+from apps.backend.app.adapters.forecast_predictor import ForecastMockPredictor
 from apps.backend.app.application.forecast_pipeline import ForecastPipeline
 from apps.backend.app.api.schemas import AnalysisResult
 from apps.backend.app.errors import QuotaExhausted
@@ -82,8 +82,8 @@ class ForecastChecks(unittest.IsolatedAsyncioTestCase):
         for pipeline in self.pipelines: await pipeline.close()
         await self.lifespan.__aexit__(None,None,None)
 
-    def worker(self,chain,score=.4999):
-        predictor=ForecastMockPredictor(self.settings,transport=httpx.MockTransport(chain.nonexistent),rng=lambda:score)
+    def worker(self,chain):
+        predictor=ForecastMockPredictor(self.settings,transport=httpx.MockTransport(chain.nonexistent))
         pipeline=ForecastPipeline(self.settings,self.real.store,self.real.budget,
             rpc=AnalysisRpc(self.settings,transport=httpx.MockTransport(chain.rpc)),
             etherscan=BackendEtherscan(self.settings,self.real.budget,transport=httpx.MockTransport(chain.etherscan),sleep=self.sleep,retries=0),predictor=predictor)
@@ -125,13 +125,14 @@ class ForecastChecks(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(wallets,[WALLET])
         self.assertTrue(all(r['relation'] in ('contains_token','swap_activity') for r in graph['edge_refs']))
         task=result['tasks'][0]
-        self.assertEqual(task['score'],.4999)
-        self.assertEqual(task['decision'],'low_volume_dead')
+        self.assertEqual(task['score'],.999)
+        self.assertEqual(task['label'],'Continued activity')
+        self.assertEqual(task['decision'],'continued_activity')
         self.assertNotIn('risk_band',task)
-        self.assertEqual(task['forecast']['decision_policy_version'],'forecast-mock-decision-0.5-v1')
+        self.assertEqual(task['forecast']['decision_policy_version'],'mock-fixed-0999-v1')
         self.assertEqual(task['result_origin'],'simulated')
         self.assertEqual(task['forecast']['observation_days'],7)
-        # Checkpoint replay reuses the original exact payload and random outcome.
+        # Checkpoint replay reuses the original exact payload and fixed outcome.
         with self.real.store.db() as db:
             replay=deepcopy(result); replay['status']='running'
             db.execute('UPDATE jobs SET result=?,lease_until=0 WHERE id=?',(json.dumps(replay),identity))
@@ -144,7 +145,7 @@ class ForecastChecks(unittest.IsolatedAsyncioTestCase):
         for i in range(80):
             row=log(30000+i,POOL,'swap',src='0x'+f'{0x5000+i:040x}',dst=WALLET,block=40)
             row['timeStamp']=hex(T0+3*86400); chain.logs.append(row)
-        identity=await self.submit(); await self.worker(chain,score=.5).run_once()
+        identity=await self.submit(); await self.worker(chain).run_once()
         result=self.real.store.get(identity)
         self.assertEqual(result['status'],'completed',result['message'])
         graph=result['graphs']['continued_activity']
@@ -203,14 +204,3 @@ class ForecastChecks(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['status'],'completed',result.get('message'))
         self.assertEqual(result['transactions']['total'],1202)
         self.assertEqual(counts,sorted(counts))
-
-    def test_policy_threshold_boundaries_and_invalid_values(self):
-        policy=ForecastPolicy(self.settings.forecast_policy_path)
-        self.assertEqual(policy.outcome(0),'low_volume_dead')
-        self.assertEqual(policy.outcome(.499999),'low_volume_dead')
-        self.assertEqual(policy.outcome(.5),'continued_activity')
-        self.assertEqual(policy.outcome(1),'continued_activity')
-        with self.assertRaises(ValueError): policy.outcome(float('nan'))
-        path=Path(self.temp.name)/'invalid.json'; data=deepcopy(policy.data); data['threshold']=True
-        path.write_text(json.dumps(data))
-        with self.assertRaises(ValueError): ForecastPolicy(path)

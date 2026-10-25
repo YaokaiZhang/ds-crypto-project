@@ -153,7 +153,7 @@ class LiveTokenChecks(unittest.IsolatedAsyncioTestCase):
         await self.lifespan.__aexit__(None,None,None)
 
     def worker(self,chain):
-        predictor=MockPredictor(self.settings,TokenInputRegistry(self.settings),transport=httpx.MockTransport(chain.nonexistent),rng=lambda:.654321)
+        predictor=MockPredictor(self.settings,TokenInputRegistry(self.settings),transport=httpx.MockTransport(chain.nonexistent))
         pipeline=TokenPipeline(self.settings,self.real.store,self.real.budget,
             rpc=AnalysisRpc(self.settings,transport=httpx.MockTransport(chain.rpc)),
             etherscan=BackendEtherscan(self.settings,self.real.budget,transport=httpx.MockTransport(chain.etherscan),sleep=self.sleep,retries=0),predictor=predictor)
@@ -202,7 +202,7 @@ class LiveTokenChecks(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(swap['amounts'][0]['raw'],'10')
         self.assertEqual(len(swap['amounts']),2)
         self.assertEqual((await self.client.get(f'/api/v1/analyses/{identity}/transactions?category=external')).status_code,422)
-        # Retries reuse all observations and persisted random scores.
+        # Retries reuse all observations and persisted fixed scores.
         sample_before=self.real.store.artifact(identity,'graph_sample','honeypot')
         with self.real.store.db() as db:
             replay=deepcopy(result); replay['status']='running'

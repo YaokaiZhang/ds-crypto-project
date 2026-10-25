@@ -38,8 +38,6 @@ class Settings:
     etherscan_api_key: str | None = field(default=None, repr=False)
     model_registry_path: str | None = None
     token_model_registry_path: str | None = None
-    forecast_policy_path: str = str(PROJECT_ROOT / 'deploy/registry/forecast_policy.json')
-    risk_policy_path: str = str(PROJECT_ROOT / 'deploy/registry/risk_policies.json')
     etherscan_rate_limit: float = 3.0
     etherscan_daily_limit: int = 99000
     # One account ledger for both API/workers and concurrent local collection.
@@ -76,8 +74,6 @@ class Settings:
                    etherscan_api_key=server_credential('ETHERSCAN_API_KEY'),
                    model_registry_path=os.getenv('MODEL_REGISTRY_PATH'),
                    token_model_registry_path=os.getenv('TOKEN_MODEL_REGISTRY_PATH'),
-                   forecast_policy_path=os.getenv('FORECAST_POLICY_PATH') or str(PROJECT_ROOT / 'deploy/registry/forecast_policy.json'),
-                   risk_policy_path=os.getenv('RISK_POLICY_PATH') or str(PROJECT_ROOT / 'deploy/registry/risk_policies.json'),
                    etherscan_rate_limit=float(os.getenv('ETHERSCAN_RATE_LIMIT', '3')),
                    etherscan_daily_limit=int(os.getenv('ETHERSCAN_DAILY_LIMIT', '99000')),
                    etherscan_quota_path=os.getenv('ETHERSCAN_QUOTA_FILE') or str(PROJECT_ROOT / '.runtime/etherscan/quota.sqlite3'),

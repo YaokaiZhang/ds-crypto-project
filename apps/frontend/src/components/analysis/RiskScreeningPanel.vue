@@ -8,6 +8,7 @@ const definitions = computed<{ id: TaskId; name: string }[]>(() => props.family 
   : [{ id: 'honeypot', name: 'Honeypot' }, { id: 'rug_pull', name: 'Rug Pull' }]);
 const tasks = computed(() => definitions.value.map(task => ({ ...task, result: props.results?.find(item => item.task_id === task.id) })));
 function bandName(result: TaskResult | undefined) {
+  if (result?.status === 'ok' && result.score != null && result.label) return result.label;
   if (result?.risk_band) return `${result.risk_band[0].toUpperCase()}${result.risk_band.slice(1)} Risk`;
   if (result?.status === 'not_applicable') return 'Unavailable';
   if (result && !['pending', 'queued', 'predicting', 'running'].includes(result.status)) return 'Unavailable';

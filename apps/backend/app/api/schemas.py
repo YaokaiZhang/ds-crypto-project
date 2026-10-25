@@ -45,6 +45,7 @@ class TaskResult(ApiModel):
     task_id: TaskId
     status: str
     score: float | None = Field(default=None, ge=0, le=1)
+    label: Literal['Low Risk', 'Medium Risk', 'High Risk', 'Continued activity', 'Low volume'] | None = None
     reason: str | None = None
     reason_code: str | None = None
     sample_id: str | None = None
@@ -59,6 +60,8 @@ class TaskResult(ApiModel):
 
     @model_validator(mode='after')
     def validate_score_provenance(self) -> 'TaskResult':
+        if self.label is not None and self.score is None:
+            raise ValueError('A prediction label requires a score')
         if self.score is not None and (self.status != 'ok' or not self.sample_id or not self.model_version):
             raise ValueError('Scores require an ok status, input sample and model version')
         if self.risk_band is not None and (self.score is None or not self.risk_band_policy_version):

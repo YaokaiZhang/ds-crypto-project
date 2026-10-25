@@ -19,6 +19,7 @@ export interface TaskResult {
   sample_id: string | null;
   model_version: string | null;
   risk_band: 'low' | 'medium' | 'high' | null;
+  label?: 'Low Risk' | 'Medium Risk' | 'High Risk' | 'Continued activity' | 'Low volume' | null;
   risk_band_policy_version: string | null;
   decision: string | null;
   calibration: string | null;

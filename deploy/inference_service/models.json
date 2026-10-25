@@ -1,0 +1,8 @@
+{
+  "tasks": {
+    "phishing": "../../artifacts/scam/phishing/forta-recent-v1/mean-sage-v1/bundle",
+    "ponzi": "../../artifacts/scam/ponzi/xblock-unica-recent-v1/mean-sage-v1/bundle",
+    "honeypot": "../../artifacts/scam/honeypot/trapdoor-api-v1/sage-v1/bundle",
+    "rug_pull": "../../artifacts/scam/rug_pull/tokenscout-eligible-1500-v2/sage-v1/bundle"
+  }
+}

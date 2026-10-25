@@ -1,5 +1,13 @@
 # Forecast live adapter
 
+Serving revision (2026-10-25): the model server owns score-to-label policies;
+the backend validates and forwards returned labels. Input-only configuration now
+ships in `apps/backend/config/`; backend runtime does not include or import
+`deploy/`. Eligible live-mock inputs return 0.999 / High Risk for Scam or
+0.999 / Continued activity for Forecast, with explicit simulated provenance.
+This supersedes earlier random-score and backend-policy descriptions below.
+See [MODEL_SERVICE_CONTRACT.md](MODEL_SERVICE_CONTRACT.md).
+
 Implemented on 2026-10-24 at the user's request. The existing `eth_live_mock`
 mode now accepts ETH, ERC-20 Scam and Forecast jobs through the same durable
 queue, lease fencing, SSE/progress, caches and account-wide Etherscan budget.
@@ -87,14 +95,15 @@ real model still requires that owner's manifest/scaler integration and checks.
 
 For a complete first-week graph with at least one valid Swap, persist the exact
 input packet and attempt POST to http://127.0.0.1:18081/predict. At the user's
-explicit request the missing target is followed by a random test score,
-generated once and persisted across recovery. API/artifacts mark simulated
+explicit request the test target is followed by a fixed 0.999 / Continued
+activity service-shaped mock response, persisted across recovery. API/artifacts mark simulated
 origin; model_available remains false. The frontend retains its existing copy.
 Invalid token/pool/participant/history or no swaps yields a null score,
 Unavailable and the existing small reason text.
 
-`deploy/registry/forecast_policy.json` is the independent temporary decision
-file; `FORECAST_POLICY_PATH` overrides it. It binds the temporary model version,
+`deploy/registry/forecast_policy.json` belongs only to the model service;
+`FORECAST_POLICY_PATH` overrides it there. The backend does not load it.
+The fixed mock fixture is independent of this threshold. The server policy binds the model version,
 positive score meaning, threshold and outcome definition:
 
 - score target: continued_activity, uncalibrated, range [0,1].

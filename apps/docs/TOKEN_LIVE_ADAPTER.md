@@ -1,5 +1,13 @@
 # ERC-20 live adapter
 
+Serving revision (2026-10-25): the model server owns score-to-label policies;
+the backend validates and forwards returned labels. Input-only configuration now
+ships in `apps/backend/config/`; backend runtime does not include or import
+`deploy/`. Eligible live-mock inputs return 0.999 / High Risk for Scam or
+0.999 / Continued activity for Forecast, with explicit simulated provenance.
+This supersedes earlier random-score and backend-policy descriptions below.
+See [MODEL_SERVICE_CONTRACT.md](MODEL_SERVICE_CONTRACT.md).
+
 Implemented on 2026-10-24 under the user-authorized ETH serving principles.
 `eth_live_mock` supports `eth_scam` and `token_scam`; the subsequent Forecast
 live extension has its own [first-week adapter](FORECAST_LIVE_ADAPTER.md). Start API/worker/frontend using
@@ -86,7 +94,7 @@ Model provenance and progress updates do not change the frontend render key,
 so the existing zoom/selection and animation remain stable.
 
 Model input collection follows each byte-identical trained manifest and scaler
-under deploy/registry/token_inputs/. It separately queries all selected emitters
+under apps/backend/config/token_inputs/. It separately queries all selected emitters
 (token and pools): getLogs newest range first, and txlist/txlistinternal
 descending. Use 100 records/action/emitter per round, at most three rounds;
 stop on graph budget, complete source exhaustion or record budget. Both use
@@ -100,11 +108,12 @@ sample identities, scalers, versions, trained binary thresholds and risk bands.
 
 For eligible usable graphs only, persist the exact scaled JSON input and try
 POST http://127.0.0.1:18081/predict. At the user's explicit request the target
-remains unavailable and a random test score is generated once and persisted.
-API/artifacts mark it simulated; model_available stays false. Random scores
-are not evidence of an actual Honeypot/Rug Pull verdict. The existing policy
-uses Honeypot L=.200/H=.700, Rug Pull L=.400/H=.850, with three-decimal frontend
-scores. Invalid or empty model input never receives a random score.
+remains a test boundary and a fixed 0.999 / High Risk response is persisted.
+API/artifacts mark it simulated; model_available stays false. These fixtures
+are not evidence of an actual Honeypot/Rug Pull verdict. The model server owns
+Honeypot L=.200/H=.700 and Rug Pull L=.400/H=.850; the backend accepts supplied
+labels and does not load those policies. Invalid or empty model input remains
+unscored.
 
 ## Shared execution and verification
 

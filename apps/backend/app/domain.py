@@ -46,6 +46,7 @@ class TaskOutcome:
     task_id: TaskId
     status: str
     score: float | None = None
+    label: str | None = None
     reason: str | None = None
     sample_id: str | None = None
     model_version: str | None = None

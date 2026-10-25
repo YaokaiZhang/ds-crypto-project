@@ -3,7 +3,8 @@ import { computed } from 'vue';
 import { formatScore } from '@/presenters/format';
 import type { TaskResult } from '@/api/contracts';
 const props = defineProps<{ result?: TaskResult; loading?: boolean }>();
-const outcome = computed(() => props.result?.forecast
+const outcome = computed(() => props.result?.status === 'ok' && props.result.score != null && props.result.label
+  ? props.result.label : props.result?.forecast
   ? props.result.forecast.outcome === 'continued_activity' ? 'Continued activity' : 'Low volume'
   : props.result && !['pending', 'queued', 'running', 'predicting'].includes(props.result.status) ? 'Unavailable'
   : props.loading ? 'Evaluating' : 'Unavailable');

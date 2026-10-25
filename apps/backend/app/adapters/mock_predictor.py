@@ -1,18 +1,17 @@
-"""Explicit temporary model boundary: real inputs, local send, random scores."""
+"""Real inputs and an explicit fixed, service-shaped mock response."""
 import asyncio
 import hashlib
 import json
 from pathlib import Path
-import secrets
 
 import httpx
 
 from packages.bundle import _bundle_digest, _validate_manifest
-from packages.graph import batch_graph_samples, graph_recipe, validate_graph_sample
+from packages.graph import batch_graph_samples, graph_recipe, graph_is_usable, validate_graph_sample
 from packages.io import atomic_bytes
 
-from ..application.risk import RiskPolicy
-from ..settings import PROJECT_ROOT
+from .model_response import fixed_mock_response, read_model_response
+from ..settings import BACKEND_ROOT
 
 
 class EthInputRegistry:
@@ -22,13 +21,13 @@ class EthInputRegistry:
 
     def __init__(self, settings):
         configured = getattr(settings, self.path_setting)
-        registry = Path(configured) if configured else PROJECT_ROOT / 'deploy/registry' / self.filename
+        registry = Path(configured).resolve() if configured else BACKEND_ROOT / 'config' / self.filename
         content = json.loads(registry.read_text())
         self.entries = {}
         for task in self.tasks:
             directory = Path(content['tasks'][task])
             if not directory.is_absolute():
-                directory = PROJECT_ROOT / directory
+                directory = registry.parent / directory
             manifest = json.loads((directory / 'manifest.json').read_text())
             _validate_manifest(manifest, task)
             digest = _bundle_digest(manifest)
@@ -65,16 +64,16 @@ class TokenInputRegistry(EthInputRegistry):
 
 
 class MockPredictor:
-    def __init__(self, settings, registry, *, transport=None, rng=None):
+    def __init__(self, settings, registry, *, transport=None):
         self.url, self.registry = settings.mock_predictor_url, registry
-        self.policy = RiskPolicy.load(settings.risk_policy_path)
         self.client = httpx.AsyncClient(transport=transport, timeout=.8, trust_env=False)
-        self.rng = rng or secrets.SystemRandom().random
 
     async def close(self):
         await self.client.aclose()
 
     async def predict(self, sample, directory):
+        if not graph_is_usable(sample):
+            raise ValueError('Input is not eligible for mock prediction')
         payload = await asyncio.to_thread(self.registry.payload, sample)
         body = json.dumps(payload, sort_keys=True, allow_nan=False).encode()
         digest = hashlib.sha256(body).hexdigest()
@@ -89,16 +88,7 @@ class MockPredictor:
             del response
         except httpx.HTTPError:
             pass
-        score = float(self.rng())
-        manifest = self.registry.entries[sample['task_id']][0]
-        band = self.policy.classify(sample['task_id'], manifest['model_version'], score)
-        if band is None:
-            raise ValueError('No simulation display policy for this input model version')
-        outcome = {'task_id': sample['task_id'], 'status': 'ok', 'score': score,
-            'sample_id': sample['sample_id'], 'model_version': 'simulated:' + manifest['model_version'],
-            'risk_band': band, 'risk_band_policy_version': 'simulation:' + self.policy.version,
-            'decision': 'screen_positive' if score >= manifest['threshold'] else 'screen_negative',
-            'calibration': 'uncalibrated', 'result_origin': 'simulated',
-            'explanation': 'Random test score. Real chain data and model-compatible input; no trained model was called.'}
+        response = fixed_mock_response(payload)
+        outcome = read_model_response(payload, response, origin='simulated')
         return outcome, {'input_sha256': digest, 'input_path': str(path), 'delivery': delivery,
-                         'target': self.url, 'result_origin': 'simulated'}
+                         'target': self.url, 'result_origin': 'simulated', 'response': response}

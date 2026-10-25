@@ -62,14 +62,14 @@ class ForecastPipeline:
                         reason='No swap activity was found in the selected pools during the first seven days. No score was generated.')
                 else:
                     collector.stage('predicting','Sending the real first-week input to the temporary Forecast predictor')
-                    cached = self.store.artifact(lease['id'],'mock_outcome','continued_activity')
+                    cached = self.store.artifact(lease['id'],'mock_outcome_fixed_0999_v1','continued_activity')
                     if cached:
                         if cached['sample_id'] != sample_id:
                             raise ServiceError('data_incomplete')
                         outcome = cached
                     else:
                         outcome,delivery = await self.predictor.predict(payload,collector.directory)
-                        self.store.save(lease,{'tasks':[outcome]},artifacts={('mock_outcome','continued_activity'):outcome,
+                        self.store.save(lease,{'tasks':[outcome]},artifacts={('mock_outcome_fixed_0999_v1','continued_activity'):outcome,
                             ('model_delivery','continued_activity'):delivery})
             header = await self.rpc.call('eth_getBlockByNumber',[hex(context['cutoff_block']),False])
             if not isinstance(header,dict) or header.get('hash') != context['cutoff_hash']:

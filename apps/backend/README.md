@@ -1,7 +1,16 @@
 # Chainrisk backend
 
+Model-service contract (2026-10-25): Gradio owns model/risk/Forecast thresholds.
+The backend consumes score + label through `app/adapters/model_response.py`,
+without deriving labels from numeric scores. Current live mock returns fixed
+0.999 / High Risk (Scam) or 0.999 / Continued activity (Forecast); empty or invalid
+inputs remain unscored. `config/` contains backend-owned input manifests/scalers
+and relative indexes. Include it in backend deployment; do not ship `deploy/`.
+The backend still needs the shared `packages/` runtime and Task A graph helpers
+under `scripts/`, as before. See [the model-service contract](../docs/MODEL_SERVICE_CONTRACT.md).
+
 ETH/ERC-20/Forecast real-data collection and the durable local worker are now available in
-`ANALYSIS_MODE=eth_live_mock`, with a temporary random-score adapter explicitly
+`ANALYSIS_MODE=eth_live_mock`, with fixed 0.999 service-shaped mock responses explicitly
 requested by the user. Run `.venv/bin/python scripts/start-eth-live.py` from the
 repository root to start API/worker/frontend. See [ETH live adapter](../docs/ETH_LIVE_ADAPTER.md)
 for the model input contract, real-address checks and restart/configuration.
@@ -18,8 +27,7 @@ components through a durable local worker. ERC-20 follows the same complete
 progressive 30-day ledger/activity and bounded delayed-graph principles; see
 [ERC-20 live adapter](../docs/TOKEN_LIVE_ADAPTER.md). Unsupported assets/pools
 show Unavailable with a reason and no score. Forecast uses its own real first-week
-window and wallet/pool/token graph, with an independently configurable 0.5 mock
-decision threshold; see [Forecast live adapter](../docs/FORECAST_LIVE_ADAPTER.md).
+window and wallet/pool/token graph, with a fixed Continued activity mock label; see [Forecast live adapter](../docs/FORECAST_LIVE_ADAPTER.md).
 Trained model serving remains unimplemented; Forecast's deployment scaler/bundle
 is still pending and its temporary input declares unscaled preprocessing.
 

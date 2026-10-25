@@ -18,7 +18,6 @@ from apps.backend.app.adapters.analysis_rpc import AnalysisRpc
 from apps.backend.app.adapters.etherscan_budget import EtherscanBudget
 from apps.backend.app.adapters.etherscan_client import BackendEtherscan
 from apps.backend.app.api.schemas import AnalysisProgress, TaskResult
-from apps.backend.app.application.risk import RiskPolicy
 from apps.backend.app.application.strategies import TASK_STRATEGIES
 from apps.backend.app.domain import EntityResolution
 from apps.backend.app.errors import QuotaExhausted, ServiceError
@@ -222,15 +221,9 @@ class ContractChecks(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValidationError):
                 AnalysisProgress(**invalid)
 
-    def test_risk_boundaries_use_raw_scores_and_exact_model_versions(self):
-        policy = RiskPolicy.load(PROJECT_ROOT / 'deploy/registry/risk_policies.json')
-        for task, entry in policy.models.items():
-            version = entry['model_version']; low = entry['L']; high = entry['H']
-            self.assertEqual(policy.classify(task, version, low - .00001), 'low')
-            self.assertEqual(policy.classify(task, version, low), 'medium')
-            self.assertEqual(policy.classify(task, version, high), 'high')
-            self.assertIsNone(policy.classify(task, 'different-weights', high))
-        self.assertEqual(policy.models['rug_pull']['L'], .4)
+    def test_backend_settings_have_no_deployment_policy_paths(self):
+        self.assertFalse(hasattr(Settings(), 'risk_policy_path'))
+        self.assertFalse(hasattr(Settings(), 'forecast_policy_path'))
 
     def test_backend_local_credentials_are_literal_only_and_hidden_in_repr(self):
         with tempfile.TemporaryDirectory() as directory:

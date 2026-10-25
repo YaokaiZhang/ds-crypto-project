@@ -111,7 +111,7 @@ class LiveEthChecks(unittest.IsolatedAsyncioTestCase):
 
     def worker(self, chain):
         registry = EthInputRegistry(self.settings)
-        predictor = MockPredictor(self.settings, registry, transport=httpx.MockTransport(chain.nonexistent), rng=lambda: .87654321)
+        predictor = MockPredictor(self.settings, registry, transport=httpx.MockTransport(chain.nonexistent))
         pipeline = EthPipeline(self.settings, self.real.store, self.real.budget,
             rpc=AnalysisRpc(self.settings, transport=httpx.MockTransport(chain.rpc)),
             etherscan=BackendEtherscan(self.settings, self.real.budget, transport=httpx.MockTransport(chain.etherscan), sleep=self.sleep),
@@ -135,7 +135,9 @@ class LiveEthChecks(unittest.IsolatedAsyncioTestCase):
         tasks = {r['task_id']: r for r in result['tasks']}
         self.assertEqual(tasks['ponzi']['status'], 'not_applicable')
         self.assertIsNone(tasks['ponzi']['score'])
-        self.assertEqual(tasks['phishing']['score'], .87654321)
+        self.assertEqual(tasks['phishing']['score'], .999)
+        self.assertEqual(tasks['phishing']['label'], 'High Risk')
+        self.assertEqual(tasks['phishing']['risk_band'], 'high')
         self.assertEqual(tasks['phishing']['result_origin'], 'simulated')
         self.assertTrue(tasks['phishing']['model_version'].startswith('simulated:'))
         self.assertEqual(result['basic_information']['balance_wei'], str(10**18 + 1))
@@ -151,7 +153,7 @@ class LiveEthChecks(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('observed_target', json.dumps(payload))
         self.assertNotIn('private-test-key', json.dumps(payload))
         self.assertEqual(result['graphs']['phishing']['context']['view_scope'], 'display_recent')
-        # Restart recovery reuses captured data and the stored random outcome.
+        # Restart recovery reuses captured data and the stored fixed outcome.
         with self.real.store.db() as db:
             recovered = deepcopy(result); recovered['status'] = 'running'
             db.execute('UPDATE jobs SET result=?,lease_until=0 WHERE id=?', (json.dumps(recovered), identity))
@@ -160,6 +162,22 @@ class LiveEthChecks(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(chain.calls), network)
         self.assertEqual(len(chain.deliveries), 1)
         self.assertEqual((await self.client.get('/api/v1/analyses/' + identity)).json()['tasks'], result['tasks'])
+
+    async def test_recovery_does_not_reuse_an_obsolete_random_mock_artifact(self):
+        chain = Chain(); worker = self.worker(chain); identity = await self.submit()
+        await worker.run_once()
+        result = self.real.store.get(identity)
+        with self.real.store.db() as db:
+            row = db.execute("SELECT payload FROM artifacts WHERE job=? AND kind='mock_outcome_fixed_0999_v1' AND task='phishing'",(identity,)).fetchone()
+            old = json.loads(row['payload']); old.update(score=.12, label='Low Risk', risk_band='low')
+            db.execute("UPDATE artifacts SET kind='mock_outcome',payload=? WHERE job=? AND kind='mock_outcome_fixed_0999_v1'",(json.dumps(old),identity))
+            result['status']='running'
+            db.execute('UPDATE jobs SET result=?,lease_until=0 WHERE id=?',(json.dumps(result),identity))
+        await worker.run_once()
+        task = self.real.store.get(identity)['tasks'][0]
+        self.assertEqual(task['score'],.999)
+        self.assertEqual(task['label'],'High Risk')
+        self.assertEqual(len(chain.deliveries),2)
 
     async def test_confirmed_facts_precede_history_without_fabricated_zero_counts(self):
         chain = Chain(contract=True)

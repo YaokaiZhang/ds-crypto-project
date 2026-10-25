@@ -1,5 +1,13 @@
 # ETH real-data adapter with temporary scoring
 
+Serving revision (2026-10-25): the model server owns score-to-label policies;
+the backend validates and forwards returned labels. Input-only configuration now
+ships in `apps/backend/config/`; backend runtime does not include or import
+`deploy/`. Eligible live-mock inputs return 0.999 / High Risk for Scam or
+0.999 / Continued activity for Forecast, with explicit simulated provenance.
+This supersedes earlier random-score and backend-policy descriptions below.
+See [MODEL_SERVICE_CONTRACT.md](MODEL_SERVICE_CONTRACT.md).
+
 User-authorized implementation, 2026-10-24. This phase implements Phishing and
 Ponzi collection/application behavior; model deployment is a later phase.
 
@@ -95,7 +103,7 @@ Models use separate frozen recipes: two hops, 32/16 fanouts, at most 512 nodes
 and 4,096 original edges, with 100 rows/action/address for ETH. Do not fill or
 pad sparse graphs. Reuse shared normalizer/builders and preserve each bundle's
 feature/scaler/recipe identity. No trainer or weights are loaded.
-deploy/registry/eth_models.json selects byte-identical manifest/scaler copies
+apps/backend/config/eth_models.json selects byte-identical manifest/scaler copies
 under eth_inputs/. Current MeanSAGE consumed inputs are node_features,
 edge_index and root_index, serialized using the frozen scaler and reverse
 message-edge conversion. Missing/invalid model history has null scores.
@@ -106,15 +114,15 @@ The worker writes a checksum-named input JSON under
 .runtime/eth-artifacts/<analysis-id>/model_inputs/, then attempts an HTTP POST
 to http://127.0.0.1:18081/predict (0.8-second timeout). This loopback target is
 fixed; no real remote predictor is configured. The explicit temporary adapter
-generates a random score once and stores it atomically. Reads/reconnects/recovery
+returns a fixed 0.999 / High Risk response and stores it atomically. Reads/reconnects/recovery
 reuse that result. Unexpected responses at that temporary port are ignored in
 this mode rather than being mistaken for a trained model result.
 
 API/artifacts include simulated result_origin/model_version/explanation and
 record input hash, delivery state and policy version. Capabilities advertise
-model_available=false. Binary decisions and display bands use the selected
-task's actual manifest threshold and user-confirmed band policy, with simulated
-provenance. Original frontend text and three-decimal score rendering are
+model_available=false. The mock supplies binary decision, risk band and display label together; the
+backend does not read threshold policies. Real decisions and display bands are
+the Gradio service's responsibility. Original frontend text and three-decimal score rendering are
 preserved at the user's request. These values are not model performance or
 real risk evidence. Removing this adapter later leaves the real-data pipeline
 and HTTP result schema intact.

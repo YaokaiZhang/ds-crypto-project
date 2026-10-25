@@ -1,29 +1,20 @@
-# Model registry
+# Model-server decision policies
 
-`forecast_policy.json` is the user-authorized temporary Forecast decision policy:
-continued_activity score, threshold 0.5, seven-day observation and following
-90-day USD 1000 Swap-volume outcome. `FORECAST_POLICY_PATH` overrides it. The
-Forecast input is a real unscaled wallet graph; its deployment bundle/scaler
-remains pending. This mock policy does not register trained weights or Scam
-risk bands. See [Forecast live adapter](../../apps/docs/FORECAST_LIVE_ADAPTER.md).
+These policies belong to the Gradio service, not the backend deployment.
 
-`eth_models.json` selects exact input manifest/scaler copies in `eth_inputs/`
-for the real-data ETH worker. The temporary scorer validates these and exports
-model-compatible inputs without loading weights. This does not activate a
-trained model service; see [ETH live adapter](../../apps/docs/ETH_LIVE_ADAPTER.md).
+- `risk_policies.json` stores the four Scam models' Low/Medium/High boundaries,
+  tied to exact model identities. `inference_service/policies.py` applies them
+  and returns `risk_band`, `label` and policy identity alongside the score.
+- `forecast_policy.json` stores Forecast's decision boundary, positive/negative
+  meanings and horizon semantics. The server policy returns a decision and
+  display label. Real Forecast inference remains unavailable until its bundle
+  and fitted scaler are integrated; the stored policy does not enable a model.
 
-`token_models.json` selects byte-identical Honeypot/Rug Pull manifest and scaler
-copies in `token_inputs/`. `TOKEN_MODEL_REGISTRY_PATH` overrides this token
-index separately from the existing ETH `MODEL_REGISTRY_PATH`. Inputs retain
-the directed edge-aware architecture's five tensors and each frozen recipe;
-no weights are copied or loaded. See [ERC-20 live adapter](../../apps/docs/TOKEN_LIVE_ADAPTER.md).
+Trained Scam binary thresholds remain in each Release bundle's `manifest.json`.
+The model service returns both the trained binary `decision` and display `label`;
+they are distinct outputs. The backend never reclassifies scores.
 
-`risk_policies.json` now records the four user-selected display-band boundaries,
-bound to exact local model versions. It does not change the bundles' trained
-binary thresholds or register model files for live serving. The backend policy
-reader validates boundaries and refuses to reuse a policy for different weights.
-See [the live backend contract](../../apps/docs/LIVE_BACKEND_IMPLEMENTATION.md).
-
-Reserved for model manifests and an index of approved versions. Records will include the task, architecture, graph and feature schemas, scaler, label polarity, threshold, calibration status, code version, and checksum.
-
-Weights will be provided through external model storage or read-only mounts, rather than the frontend public directory. No models are registered yet.
+`prepare.py` includes both policy JSONs and `policies.py` in the Space package.
+Backend input-only indexes/manifests/scalers have moved to `apps/backend/config/`.
+See [deployment instructions](../README.md) and the
+[model-service contract](../../apps/docs/MODEL_SERVICE_CONTRACT.md).

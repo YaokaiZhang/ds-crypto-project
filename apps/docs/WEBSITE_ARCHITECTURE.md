@@ -1,5 +1,13 @@
 # Website architecture: Vue/Vite and FastAPI
 
+Serving revision (2026-10-25): the model server owns score-to-label policies;
+the backend validates and forwards returned labels. Input-only configuration now
+ships in `apps/backend/config/`; backend runtime does not include or import
+`deploy/`. Eligible live-mock inputs return 0.999 / High Risk for Scam or
+0.999 / Continued activity for Forecast, with explicit simulated provenance.
+This supersedes earlier random-score and backend-policy descriptions below.
+See [MODEL_SERVICE_CONTRACT.md](MODEL_SERVICE_CONTRACT.md).
+
 Forecast live scope (2026-10-24): the shared worker now also collects real
 creation-based first-seven-day token/pool events, publishes facts/ledger/activity
 progressively and delays its bounded wallet/pool/token graph until collection

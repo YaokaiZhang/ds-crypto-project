@@ -31,6 +31,23 @@ reports and keep online assessments distinct from offline benchmarks.
 
 ### System-wide rules
 
+Model-service ownership revision requested on 2026-10-25: the Gradio inference
+server owns trained binary thresholds, Scam risk bands and Forecast decisions,
+and returns score plus a categorical/display label and provenance. The backend
+validates request/response identity and persists/presents supplied labels without
+re-thresholding. It has no runtime dependency on `deploy/`; input-only manifests,
+scalers and indexes now ship in `apps/backend/config/`. In `eth_live_mock`, eligible
+real inputs receive a fixed service-shaped response: 0.999 / High Risk for Scam,
+0.999 / Continued activity for Forecast. This replaces random simulation and
+backend-owned decision policies. Missing/incomplete/unsupported inputs stay
+unscored; simulation remains explicit and real-model capabilities remain false.
+Use a new mock cache identity so recovering old random outcomes cannot reuse them;
+completed historical records are not rewritten. Deployment policies stay under
+`deploy/registry/`, and real remote transport/Forecast bundle integration remain
+separate work. See [the model-service contract](apps/docs/MODEL_SERVICE_CONTRACT.md).
+This is an online serving/ownership contract change, not a change to training
+weights, input recipes, labels or historical evaluation.
+
 Online-service revision confirmed on 2026-10-24: ETH address facts, Flow
 Activity and the Transaction Ledger use the complete fixed preceding 30-day
 root-address window. They update incrementally as source batches arrive;

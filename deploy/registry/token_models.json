@@ -1,7 +1,0 @@
-{
-  "registry_version": "token-input-contracts-1",
-  "tasks": {
-    "honeypot": "deploy/registry/token_inputs/honeypot",
-    "rug_pull": "deploy/registry/token_inputs/rug_pull"
-  }
-}
