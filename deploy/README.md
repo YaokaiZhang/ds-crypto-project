@@ -10,9 +10,11 @@ Future backend predictor -> HTTPS -> Space / Gradio Server -> model -> result
 ```
 
 Phishing, Ponzi, Honeypot and Rug Pull reuse `packages.bundle.load_model_bundle`
-and `predict_bundle`. They load once, use frozen training scalers and never train,
-collect data or generate random fallback scores. Forecast (`continued_activity`)
-returns `model_unavailable` until its deployment bundle/scaler is available.
+and `predict_bundle`. Forecast (`continued_activity`) uses
+`packages.forecast.load_forecast_bundle` / `predict_forecast`: a three-seed
+edge-aware GCN ensemble over the first-week wallet graph. All models load once,
+use frozen training scalers and never train, collect data or generate random
+fallback scores. A task omitted from `models.json` returns `model_unavailable`.
 There is no version routing: `models.json` selects one bundle directory per task.
 Existing manifest identities still bind weights, scaler, inputs and risk bands.
 The service owns thresholds and labels. The backend receives and validates
@@ -21,28 +23,35 @@ score + label; it never derives a label from the score.
 ## 1. Download the published model bundles
 
 Run all commands from the `ds-crypto-project` repository root. Obtain weights
-from [Scam Models v0.1.0](https://github.com/YaokaiZhang/ds-crypto-project/releases/tag/scam-models-v0.1.0).
-This was published as a research prerelease: use the explicit
-`scam-models-v0.1.0` tag instead of the GitHub `latest` download URL.
+from the [Models release](https://github.com/YaokaiZhang/ds-crypto-project/releases/tag/Models)
+(tag `Models`). Use the explicit tag instead of the GitHub `latest` download URL.
 
-| Task | Release asset |
-|---|---|
-| phishing | `chainrisk-phishing-v0.1.0.zip` |
-| ponzi | `chainrisk-ponzi-v0.1.0.zip` |
-| honeypot | `chainrisk-honeypot-v0.1.0.zip` |
-| rug_pull | `chainrisk-rug_pull-v0.1.0.zip` |
+| Task | Release asset | Model version |
+|---|---|---|
+| phishing | `chainrisk-phishing-v0.1.0.zip` | `phishing-542e0cb0aebaf59c` |
+| ponzi | `chainrisk-ponzi-v0.1.0.zip` | `ponzi-0391bc0785180121` |
+| honeypot | `chainrisk-honeypot-v0.1.0.zip` | `honeypot-6c18c414ab9f5896` |
+| rug_pull | `chainrisk-rug_pull-v0.1.0.zip` | `rug_pull-642ed08bc29e8d3c` |
+| continued_activity | `chainrisk-continued_activity-v0.1.0.zip` | `continued_activity-d6a823768005e113` |
 
 Also download the attached `SHA256SUMS`. Each ZIP contains a top-level directory
-named after the ZIP (without `.zip`), holding `model.pt`, `scaler.json`,
-`manifest.json` and an internal `SHA256SUMS`. Keep the files together. Training
-reports, datasets and prediction records are not needed for deployment.
+named after the ZIP (without `.zip`) and an internal `SHA256SUMS`. Scam bundles
+hold `model.pt`, `scaler.json` and `manifest.json`; the Forecast bundle holds
+`manifest.json`, `scaler.json` and one `member-<seed>.pt` per ensemble member.
+Keep the files together. Training reports, datasets and prediction records are
+not needed for deployment.
+
+The Forecast bundle is exported from the Task A training runs (pruned temporal
+split, `edge_gcn`, seeds 20261001-3) by `scripts/export_forecast_bundle.py`,
+which reloads the written bundle and requires it to reproduce the recorded
+research ensemble scores on all 2,000 training-dataset graphs.
 
 For a publicly accessible Release:
 
 ```bash
 mkdir -p deploy/.build/release-downloads
-RELEASE_BASE_URL=https://github.com/YaokaiZhang/ds-crypto-project/releases/download/scam-models-v0.1.0
-for asset in SHA256SUMS chainrisk-phishing-v0.1.0.zip chainrisk-ponzi-v0.1.0.zip chainrisk-honeypot-v0.1.0.zip chainrisk-rug_pull-v0.1.0.zip; do
+RELEASE_BASE_URL=https://github.com/YaokaiZhang/ds-crypto-project/releases/download/Models
+for asset in SHA256SUMS chainrisk-phishing-v0.1.0.zip chainrisk-ponzi-v0.1.0.zip chainrisk-honeypot-v0.1.0.zip chainrisk-rug_pull-v0.1.0.zip chainrisk-continued_activity-v0.1.0.zip; do
   curl --fail --location --retry 3 \
     --output "deploy/.build/release-downloads/$asset" "$RELEASE_BASE_URL/$asset"
 done
@@ -53,13 +62,13 @@ has repository access instead of unauthenticated `curl`:
 
 ```bash
 gh auth login
-gh release download scam-models-v0.1.0 \
+gh release download Models \
   --repo YaokaiZhang/ds-crypto-project \
   --dir deploy/.build/release-downloads \
   --pattern 'chainrisk-*-v0.1.0.zip' --pattern SHA256SUMS
 ```
 
-Alternatively, download those five assets from the Release page into the same
+Alternatively, download those six assets from the Release page into the same
 directory. A GitHub read credential is used only for downloading private assets;
 it is different from the Hugging Face token used to upload/call the Space.
 
@@ -68,7 +77,7 @@ Verify downloads before extracting, then verify each extracted bundle:
 ```bash
 (cd deploy/.build/release-downloads && shasum -a 256 -c SHA256SUMS)
 mkdir -p deploy/.build/release-models
-for task in phishing ponzi honeypot rug_pull; do
+for task in phishing ponzi honeypot rug_pull continued_activity; do
   unzip -q "deploy/.build/release-downloads/chainrisk-$task-v0.1.0.zip" \
     -d deploy/.build/release-models
   (cd "deploy/.build/release-models/chainrisk-$task-v0.1.0" && shasum -a 256 -c SHA256SUMS)
@@ -90,7 +99,8 @@ cat > deploy/.build/release-models/models.json <<'JSON'
     "phishing": "chainrisk-phishing-v0.1.0",
     "ponzi": "chainrisk-ponzi-v0.1.0",
     "honeypot": "chainrisk-honeypot-v0.1.0",
-    "rug_pull": "chainrisk-rug_pull-v0.1.0"
+    "rug_pull": "chainrisk-rug_pull-v0.1.0",
+    "continued_activity": "chainrisk-continued_activity-v0.1.0"
   }
 }
 JSON
@@ -126,7 +136,7 @@ space/
   bundles/<task>/
     manifest.json
     scaler.json
-    model.pt
+    model.pt               # Forecast: member-<seed>.pt files instead
 ```
 
 The generated folder excludes backend secrets, provider keys, datasets, research,
@@ -223,7 +233,10 @@ Hugging Face still protects an entire Private Space.
 
 Use a saved compatible backend packet to test an actual prediction, for example
 `.runtime/eth-artifacts/<analysis-id>/model_inputs/<task>-<hash>.json`. Actual
-input packets are not included in the public deployment package.
+input packets are not included in the public deployment package. For Forecast,
+a label-free row of the Task A `graphs.jsonl` wrapped as
+`{"task_id": "continued_activity", "sample_id": "...", "graph_sample": <row>}`
+is also a valid real input.
 
 ```bash
 curl --fail --max-time 180 \
@@ -256,6 +269,16 @@ protocol/model/scaler/recipe/feature/sample/target/cutoff metadata must match th
 loaded bundle and graph. The already-scaled `inputs` field is ignored:
 `predict_bundle` applies the training scaler to the canonical graph exactly once.
 Tensor-only requests are not supported.
+
+Forecast requests send the backend's `forecast-wallet-observations-1` packet:
+`task_id: continued_activity`, `sample_id`, and the unscaled first-week wallet
+graph from `scripts.build_wallet_graph.wallet_graph_for_target` as
+`graph_sample` (full 18/11-feature or pruned 15/9-feature schema; the model's
+columns are selected by name). Supplied `target`/`cutoff` must match the graph.
+`model_version` may be the loaded bundle's identity or the backend's pending
+marker `forecast-wallet-graph-mock-v1`. The response `model_version` is the real
+bundle identity, so a backend real-mode adapter must send that identity for its
+response validator to accept the result.
 
 A scored response includes `task_id`, `sample_id`, `target`, `cutoff`, `status`,
 `score`, `label`, `model_version`, `result_origin: model`, `decision`, `calibration`,
@@ -330,10 +353,14 @@ In another terminal, run `smoke.py http://127.0.0.1:7860 --payload ...` using th
 environment. Stop the server with Ctrl-C. Retain the existing environment and
 Gradio after testing; no cleanup/delete command is required.
 
-The full regression suite additionally uses the original local training bundles
-selected by `inference_service/models.json`; when those artifacts are present:
+The full regression suite uses the original local training bundles selected by
+`inference_service/models.json`, or the downloaded Release bundles through
+`TEST_MODEL_CONFIG`. `TEST_FORECAST_GRAPHS` enables the Forecast checks with
+real Task A wallet graphs:
 
 ```bash
+TEST_MODEL_CONFIG=deploy/.build/release-models/models.json \
+TEST_FORECAST_GRAPHS=../ds/project/data/wallet_graph_input_20261003_2000_v4/graphs.jsonl \
 GRADIO_ANALYTICS_ENABLED=False .venv/bin/python \
   -m unittest discover -s deploy/inference_service/checks -v
 ```
@@ -351,8 +378,11 @@ Idle/free hardware can sleep; its first request can include a cold start. Choose
 always-running paid hardware if needed. HF authentication/startup failures may
 occur before the application can return JSON. Local disk is ephemeral; weights
 are reloaded from the Space repository on restart. The inference service stores
-no jobs/results. Forecast deployment and backend real-mode integration remain
-separate work, and deployment does not establish additional model-quality claims.
+no jobs/results. Backend real-mode integration remains separate work, and deployment does not
+establish additional model-quality claims. Forecast was trained with historical
+USD swap volumes; current live backend packets carry no historical USD
+(`log1p_positive_volume_usd = 0`), which is outside the training distribution
+and should be resolved before relying on live Forecast scores.
 
 References: [Gradio Server Mode](https://www.gradio.app/guides/server-mode),
 [Spaces configuration](https://huggingface.co/docs/hub/spaces-config-reference),

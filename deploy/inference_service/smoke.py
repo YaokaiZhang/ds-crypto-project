@@ -29,7 +29,8 @@ def main():
             response.raise_for_status()
             result = response.json()
             if (result.get('status') != 'ok' or result.get('result_origin') != 'model'
-                    or result.get('sample_id') != payload['graph_sample']['sample_id']
+                    # Scam graphs carry their own sample_id; Forecast packets carry it beside the graph.
+                    or result.get('sample_id') != payload['graph_sample'].get('sample_id', payload.get('sample_id'))
                     or result.get('task_id') != payload['task_id'] or result.get('score') is None):
                 raise RuntimeError('Service did not return a successful bound model prediction')
             print(json.dumps(result, indent=2))

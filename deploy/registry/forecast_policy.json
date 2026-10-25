@@ -1,8 +1,8 @@
 {
-  "policy_version": "forecast-mock-decision-0.5-v1",
-  "model_version": "forecast-wallet-graph-mock-v1",
+  "policy_version": "forecast-edge-gcn-validation-threshold-v1",
+  "model_version": "continued_activity-d6a823768005e113",
   "score_target": "continued_activity",
-  "threshold": 0.5,
+  "threshold": 0.446028470993042,
   "positive_outcome": "continued_activity",
   "negative_outcome": "low_volume_dead",
   "observation_days": 7,

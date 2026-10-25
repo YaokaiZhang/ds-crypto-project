@@ -13,7 +13,14 @@ except ImportError:
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-PACKAGE_FILES = ('__init__.py', 'bundle.py', 'graph.py', 'models.py', 'tasks.py', 'token.py', 'transactions.py')
+PACKAGE_FILES = ('__init__.py', 'bundle.py', 'forecast.py', 'graph.py', 'models.py', 'tasks.py', 'token.py', 'transactions.py')
+
+
+def bundle_files(directory, task):
+    if task != 'continued_activity':
+        return ('manifest.json', 'scaler.json', 'model.pt')
+    manifest = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
+    return ('manifest.json', 'scaler.json', *(member['weights_file'] for member in manifest['members']))
 
 
 def prepare(output, config, tasks=None):
@@ -38,7 +45,7 @@ def prepare(output, config, tasks=None):
     for task in selected:
         destination = output / 'bundles' / task
         destination.mkdir(parents=True)
-        for filename in ('manifest.json', 'scaler.json', 'model.pt'):
+        for filename in bundle_files(paths[task], task):
             shutil.copy2(paths[task] / filename, destination / filename)
     (output / 'models.json').write_text(json.dumps(config_out, indent=2) + '\n')
     shutil.copy2(HERE.parent / 'registry/risk_policies.json', output / 'risk_policies.json')
@@ -50,7 +57,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--config', type=Path, default=HERE / 'models.json')
-    parser.add_argument('--tasks', nargs='+', choices=('phishing', 'ponzi', 'honeypot', 'rug_pull'))
+    parser.add_argument('--tasks', nargs='+', choices=('phishing', 'ponzi', 'honeypot', 'rug_pull', 'continued_activity'))
     args = parser.parse_args()
     print(prepare(args.output, args.config, args.tasks))
 

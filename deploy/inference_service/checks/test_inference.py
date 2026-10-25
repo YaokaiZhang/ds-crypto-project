@@ -5,6 +5,7 @@ are optional; the API contract checks also run with a small synthetic graph.
 """
 import copy
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -19,12 +20,16 @@ from deploy.inference_service.prepare import prepare
 from deploy.inference_service.runtime import InferenceRuntime, read_config
 from deploy.inference_service.policies import RiskPolicy, ForecastPolicy
 from packages.bundle import predict_bundle
+from packages.forecast import predict_forecast
 from packages.graph import build_graph_sample
 
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT.parent
-CONFIG = ROOT / 'inference_service/models.json'
+# Release-downloaded bundles can replace the original local training artifacts.
+CONFIG = Path(os.getenv('TEST_MODEL_CONFIG') or ROOT / 'inference_service/models.json').resolve()
 POLICY = ROOT / 'registry/risk_policies.json'
+# Optional real first-week wallet graphs (Task A graphs.jsonl) for Forecast checks.
+FORECAST_GRAPHS = os.getenv('TEST_FORECAST_GRAPHS')
 
 
 class ServingTests(unittest.TestCase):
@@ -55,12 +60,14 @@ class ServingTests(unittest.TestCase):
     def post(self, payload):
         return self.client.post('/predict', json=payload, headers=self.headers)
 
-    def test_all_four_models_loaded_forecast_unavailable(self):
+    def test_configured_models_loaded_and_missing_task_unavailable(self):
         metadata = self.runtime.models()
-        self.assertEqual(sum(t['model_available'] for t in metadata['tasks']), 4)
-        response = self.post({'task_id': 'continued_activity', 'sample_id': 'forecast-check'})
-        self.assertEqual(response.status_code, 503)
-        self.assertIsNone(response.json()['score'])
+        loaded = {t['task_id'] for t in metadata['tasks'] if t['model_available']}
+        self.assertEqual(loaded, set(self.runtime.bundles))
+        if 'continued_activity' not in loaded:
+            response = self.post({'task_id': 'continued_activity', 'sample_id': 'forecast-check'})
+            self.assertEqual(response.status_code, 503)
+            self.assertIsNone(response.json()['score'])
 
     def test_health_and_authentication(self):
         self.assertEqual(self.client.get('/health/live').status_code, 200)
@@ -69,7 +76,7 @@ class ServingTests(unittest.TestCase):
         self.assertEqual(self.client.post('/gradio_api/call/predict', json={'data': [self.payload]}).status_code, 401)
         response = self.client.get('/health/ready', headers=self.headers)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()['loaded_tasks']), 4)
+        self.assertEqual(response.json()['loaded_tasks'], list(self.runtime.bundles))
 
     def test_rest_matches_shared_predictor_and_ignores_pre_scaled_tensors(self):
         packet = copy.deepcopy(self.payload)
@@ -94,8 +101,9 @@ class ServingTests(unittest.TestCase):
             self.assertIsNone(self.runtime.policy.classify(task,'different-weights',entry['H']))
         policy=self.runtime.forecast_policy
         version=policy.data['model_version']
-        self.assertEqual(policy.result(.499999,version)['label'],'Low volume')
-        self.assertEqual(policy.result(.5,version)['label'],'Continued activity')
+        threshold=policy.data['threshold']
+        self.assertEqual(policy.result(threshold-0.000001,version)['label'],'Low volume')
+        self.assertEqual(policy.result(threshold,version)['label'],'Continued activity')
         self.assertEqual(policy.result(.999,version)['forecast']['outcome'],'continued_activity')
         with self.assertRaises(ValueError):
             policy.result(.999,'different-weights')
@@ -229,6 +237,74 @@ print('standalone model server passed')
                 expected = predict_bundle(bundle, [packet['graph_sample']])[0]
                 self.assertEqual(result['status'], 'ok')
                 self.assertEqual(result['score'], expected['score'])
+
+
+
+@unittest.skipUnless(FORECAST_GRAPHS, 'Set TEST_FORECAST_GRAPHS to Task A wallet graphs.jsonl')
+class ForecastServingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.runtime = InferenceRuntime(CONFIG, risk_policy_path=POLICY)
+        if 'continued_activity' not in cls.runtime.bundles:
+            raise unittest.SkipTest('No Forecast bundle configured')
+        cls.client = TestClient(create_app(cls.runtime, api_key=''))
+        with open(FORECAST_GRAPHS) as handle:
+            cls.graphs = [json.loads(next(handle)) for _ in range(8)]
+        for graph in cls.graphs:
+            graph.pop('label', None)
+            graph['partition'] = 'inference'
+
+    def packet(self, graph):
+        # Same shape as apps/backend/app/application/forecast_inputs.py.
+        return {'protocol_version': 'forecast-wallet-observations-1', 'task_id': 'continued_activity',
+                'sample_id': 'forecast-' + graph['token_address'], 'target': graph['token_address'],
+                'cutoff': graph['cutoff'], 'model_version': 'forecast-wallet-graph-mock-v1',
+                'inputs': {'node_features': [[999999]]}, 'graph_sample': graph}
+
+    def test_real_graphs_scored_with_server_label(self):
+        bundle = self.runtime.bundles['continued_activity']
+        expected = predict_forecast(bundle, self.graphs)
+        threshold = bundle.manifest['threshold']
+        for graph, score in zip(self.graphs, expected):
+            response = self.client.post('/predict', json=self.packet(graph))
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual((data['status'], data['result_origin']), ('ok', 'model'))
+            self.assertAlmostEqual(data['score'], score, places=6)
+            self.assertEqual(data['decision'], 'continued_activity' if data['score'] >= threshold else 'low_volume_dead')
+            self.assertEqual(data['model_version'], bundle.manifest['model_version'])
+
+    def test_response_matches_backend_consumption_contract(self):
+        from apps.backend.app.adapters.model_response import read_model_response
+        request = {**self.packet(self.graphs[0]), 'model_version': self.runtime.bundles['continued_activity'].manifest['model_version']}
+        consumed = read_model_response(request, self.runtime.predict(request))
+        self.assertIn(consumed['label'], ('Continued activity', 'Low volume'))
+
+    def test_identity_mismatches_rejected(self):
+        for field, value in [('target', '0x' + '0' * 40), ('cutoff', '2000-01-01T00:00:00Z'),
+                             ('model_version', 'continued_activity-wrong'), ('protocol_version', 'wrong')]:
+            with self.subTest(field=field):
+                response = self.client.post('/predict', json={**self.packet(self.graphs[0]), field: value})
+                self.assertEqual(response.status_code, 422)
+                self.assertIsNone(response.json()['score'])
+
+    def test_missing_feature_rejected_and_swap_free_graph_scored(self):
+        graph = copy.deepcopy(self.graphs[0])
+        graph['node_feature_names'] = graph['node_feature_names'][:-1] + ['renamed']
+        self.assertEqual(self.client.post('/predict', json=self.packet(graph)).status_code, 422)
+        graph = copy.deepcopy(self.graphs[0])
+        keep = [i for i, ref in enumerate(graph['node_refs']) if ref['kind'] != 'wallet']
+        edges = [i for i, (a, b) in enumerate(zip(*graph['edge_index'])) if a in keep and b in keep]
+        remap = {old: new for new, old in enumerate(keep)}
+        for key in ('node_features', 'node_refs'):
+            graph[key] = [graph[key][i] for i in keep]
+        for key in ('edge_features', 'edge_refs'):
+            graph[key] = [graph[key][i] for i in edges]
+        graph['edge_index'] = [[remap[graph['edge_index'][row][i]] for i in edges] for row in (0, 1)]
+        # Task A training included swap-free graphs (pool and token only).
+        data = self.client.post('/predict', json=self.packet(graph)).json()
+        self.assertEqual(data['status'], 'ok')
+        self.assertIn(data['label'], ('Continued activity', 'Low volume'))
 
 
 if __name__ == '__main__':

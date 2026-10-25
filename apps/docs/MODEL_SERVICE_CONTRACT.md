@@ -87,4 +87,6 @@ an obsolete random score. Completed historical results remain intact.
 Real remote transport is a later change. It must replace the explicit mock
 fixture with the server response, call the same validator with origin `model`,
 and update capabilities. A real transport failure must never fall back to this
-mock fixture. Forecast remains unserved until its real bundle/scaler is integrated.
+mock fixture. The model service now serves the real Forecast bundle
+(`continued_activity-d6a823768005e113`); a real Forecast adapter must send that
+`model_version` so this validator accepts the response.

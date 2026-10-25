@@ -12,16 +12,17 @@ pinned: false
 
 # Chainrisk Model API
 
-One Gradio Server Mode process loads one fixed bundle for each configured Scam
-task: Phishing, Ponzi, Honeypot and Rug Pull. Forecast remains unavailable until
-its deployment bundle/scaler exists. The service owns numeric thresholds and returns a score plus its display label.
+One Gradio Server Mode process loads one fixed bundle for each configured task:
+Phishing, Ponzi, Honeypot, Rug Pull and Forecast (`continued_activity`, a
+three-seed edge-aware GCN ensemble). The service owns numeric thresholds and
+returns a score plus its display label.
 No training, provider access or random fallback scores are used.
 
 In the source checkout, follow **deploy/README.md** (copied to
 [DEPLOYMENT.md](DEPLOYMENT.md) in the prepared Space) for the full Hugging Face
 creation, upload, configuration, call testing and local uv environment guide.
-Download and verify the four ZIP bundles plus `SHA256SUMS` from the
-[scam-models-v0.1.0 Release](https://github.com/YaokaiZhang/ds-crypto-project/releases/tag/scam-models-v0.1.0),
+Download and verify the five ZIP bundles plus `SHA256SUMS` from the
+[Models Release](https://github.com/YaokaiZhang/ds-crypto-project/releases/tag/Models),
 extract them, and pass their mapping to `prepare.py --config` as described in that
 guide. Upload the generated folder contents, including shared
 `packages/` and `bundles/`, instead of this source directory alone.
@@ -44,7 +45,8 @@ guide. Upload the generated folder contents, including shared
 - `GET /health/live`: liveness.
 - `GET /health/ready`: successfully loaded tasks.
 - `GET /models`: availability and model/input metadata.
-- `POST /predict`: JSON with `task_id` and the complete unscaled `graph_sample`.
+- `POST /predict`: JSON with `task_id` and the complete unscaled `graph_sample`
+  (Scam canonical graph, or Forecast first-week wallet graph plus `sample_id`).
 - Gradio client: `client.predict(payload=packet, api_name="/predict")`.
 
 Existing ETH/token packets are accepted. Supplied identities are checked and

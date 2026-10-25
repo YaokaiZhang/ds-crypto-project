@@ -31,6 +31,19 @@ reports and keep online assessments distinct from offline benchmarks.
 
 ### System-wide rules
 
+Forecast model serving revision requested on 2026-10-25: the Gradio inference
+server now loads the trained Task A Forecast bundle
+(`continued_activity-d6a823768005e113`, Models Release asset
+`chainrisk-continued_activity-v0.1.0.zip`). It is the pruned temporal-split
+`edge_gcn` three-seed probability ensemble, exported unchanged by
+`scripts/export_forecast_bundle.py` and verified to reproduce recorded research
+scores. Its validation-selected ensemble threshold (0.446) replaces the temporary
+0.5 Forecast policy. Swap-free first-week graphs are scored as in training;
+backend eligibility rules are unchanged. This is a model-service change only:
+backend real-mode transport, the fixed mock fixture, Task A labels, splits and
+weights are unchanged. Live packets lack historical USD, which the model was
+trained with. See [deployment](deploy/README.md).
+
 Model-service ownership revision requested on 2026-10-25: the Gradio inference
 server owns trained binary thresholds, Scam risk bands and Forecast decisions,
 and returns score plus a categorical/display label and provenance. The backend
