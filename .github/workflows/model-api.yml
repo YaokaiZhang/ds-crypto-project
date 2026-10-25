@@ -1,0 +1,22 @@
+# Builds the model API image from the pinned Release and verifies real predictions.
+name: model-api
+
+on:
+  push:
+    paths: ["deploy/**", "packages/**", ".github/workflows/model-api.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build, start and verify (deploy/reproduce.sh)
+        run: deploy/reproduce.sh container
+      - name: Server log on failure
+        if: failure()
+        run: docker logs chainrisk-model-api || true
