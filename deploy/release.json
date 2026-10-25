@@ -1,0 +1,11 @@
+{
+  "repository": "YaokaiZhang/ds-crypto-project",
+  "tag": "Models",
+  "bundles": {
+    "phishing": {"asset": "chainrisk-phishing-v0.1.0.zip", "model_version": "phishing-542e0cb0aebaf59c"},
+    "ponzi": {"asset": "chainrisk-ponzi-v0.1.0.zip", "model_version": "ponzi-0391bc0785180121"},
+    "honeypot": {"asset": "chainrisk-honeypot-v0.1.0.zip", "model_version": "honeypot-6c18c414ab9f5896"},
+    "rug_pull": {"asset": "chainrisk-rug_pull-v0.1.0.zip", "model_version": "rug_pull-642ed08bc29e8d3c"},
+    "continued_activity": {"asset": "chainrisk-continued_activity-v0.2.0.zip", "model_version": "continued_activity-b6140c2fdd0cc2e6"}
+  }
+}

@@ -1,0 +1,6 @@
+# Only deploy/Dockerfile builds from this context; it needs packages/ and deploy/.
+*
+!packages/
+!deploy/
+deploy/.build/
+**/__pycache__/

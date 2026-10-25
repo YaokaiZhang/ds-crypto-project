@@ -20,6 +20,51 @@ Existing manifest identities still bind weights, scaler, inputs and risk bands.
 The service owns thresholds and labels. The backend receives and validates
 score + label; it never derives a label from the score.
 
+## Reproduce in one command (reviewers)
+
+From a fresh clone, on any machine with Docker (or podman):
+
+```bash
+deploy/reproduce.sh
+```
+
+It builds `deploy/Dockerfile` (Python 3.11, CPU PyTorch 2.14.1, Gradio 6.30.0),
+downloads the bundles pinned in [`release.json`](release.json) from the `Models`
+Release, verifies every ZIP and file checksum and every model version, prepares
+the same folder that is uploaded to the Space, starts it on port 7860 with a
+random API key and runs [`verify_service.py`](verify_service.py). The check
+requires all five pinned model versions to be served, `/predict` to reject a
+missing key, and two real held-out Task A tokens in [`fixtures/`](fixtures) to
+reproduce their recorded research ensemble scores (tolerance 1e-5) and true
+outcomes. It prints `PASS`, the URL, the key and the stop command.
+
+- Without a container: `deploy/reproduce.sh local` (needs `python3.11`; set
+  `PYTHON=/path/to/python3.11` otherwise) does the same steps in a fresh venv
+  under `deploy/.build/`.
+- An already running service, such as the Space:
+  `INFERENCE_API_KEY=... deploy/reproduce.sh verify https://OWNER-SPACE.hf.space`
+  (add `HF_TOKEN` for a Private Space).
+- CI: [`.github/workflows/model-api.yml`](../.github/workflows/model-api.yml) runs
+  `deploy/reproduce.sh` on every push that touches `deploy/` or `packages/`.
+- `verify_service.py` and `fetch_release.py` use only the Python standard library.
+
+### Other hosts (Verda, any VM or container platform)
+
+The image needs no GPU, no secrets other than `INFERENCE_API_KEY`, and no
+network access after the build. Inference is CPU-only (about 10-40 ms per
+request), so a small CPU instance is enough; a GPU instance adds cost only.
+
+- **Any Linux VM, including a Verda instance:** install Docker, clone the
+  repository and run `deploy/reproduce.sh`. Open only port 7860 (or put it behind
+  an HTTPS reverse proxy) and pass your own `INFERENCE_API_KEY`.
+- **Managed container services** (Verda serverless containers, Cloud Run, Fly.io,
+  a Hugging Face Docker Space): build and push the image to a registry, e.g.
+  `docker build -f deploy/Dockerfile -t ghcr.io/OWNER/chainrisk-model-api:v0.2.0 .`
+  then `docker push ...`, and create a deployment with container port 7860,
+  secret environment variable `INFERENCE_API_KEY`, and health check
+  `GET /health/ready`. Build with `--platform linux/amd64` when the platform
+  requires x86-64.
+
 ## 1. Download the published model bundles
 
 Run all commands from the `ds-crypto-project` repository root. Obtain weights
@@ -32,7 +77,7 @@ from the [Models release](https://github.com/YaokaiZhang/ds-crypto-project/relea
 | ponzi | `chainrisk-ponzi-v0.1.0.zip` | `ponzi-0391bc0785180121` |
 | honeypot | `chainrisk-honeypot-v0.1.0.zip` | `honeypot-6c18c414ab9f5896` |
 | rug_pull | `chainrisk-rug_pull-v0.1.0.zip` | `rug_pull-642ed08bc29e8d3c` |
-| continued_activity | `chainrisk-continued_activity-v0.1.0.zip` | `continued_activity-d6a823768005e113` |
+| continued_activity | `chainrisk-continued_activity-v0.2.0.zip` | `continued_activity-b6140c2fdd0cc2e6` |
 
 Also download the attached `SHA256SUMS`. Each ZIP contains a top-level directory
 named after the ZIP (without `.zip`) and an internal `SHA256SUMS`. Scam bundles
@@ -42,7 +87,8 @@ Keep the files together. Training reports, datasets and prediction records are
 not needed for deployment.
 
 The Forecast bundle is exported from the Task A training runs (pruned temporal
-split, `edge_gcn`, seeds 20261001-3) by `scripts/export_forecast_bundle.py`,
+split without the USD volume feature, `edge_gcn`, seeds 20261001-3) by
+`scripts/export_forecast_bundle.py`,
 which reloads the written bundle and requires it to reproduce the recorded
 research ensemble scores on all 2,000 training-dataset graphs.
 
@@ -51,7 +97,7 @@ For a publicly accessible Release:
 ```bash
 mkdir -p deploy/.build/release-downloads
 RELEASE_BASE_URL=https://github.com/YaokaiZhang/ds-crypto-project/releases/download/Models
-for asset in SHA256SUMS chainrisk-phishing-v0.1.0.zip chainrisk-ponzi-v0.1.0.zip chainrisk-honeypot-v0.1.0.zip chainrisk-rug_pull-v0.1.0.zip chainrisk-continued_activity-v0.1.0.zip; do
+for asset in SHA256SUMS chainrisk-phishing-v0.1.0.zip chainrisk-ponzi-v0.1.0.zip chainrisk-honeypot-v0.1.0.zip chainrisk-rug_pull-v0.1.0.zip chainrisk-continued_activity-v0.2.0.zip; do
   curl --fail --location --retry 3 \
     --output "deploy/.build/release-downloads/$asset" "$RELEASE_BASE_URL/$asset"
 done
@@ -65,22 +111,24 @@ gh auth login
 gh release download Models \
   --repo YaokaiZhang/ds-crypto-project \
   --dir deploy/.build/release-downloads \
-  --pattern 'chainrisk-*-v0.1.0.zip' --pattern SHA256SUMS
+  --pattern 'chainrisk-*-v0.1.0.zip' --pattern 'chainrisk-continued_activity-v0.2.0.zip' \
+  --pattern SHA256SUMS
 ```
 
-Alternatively, download those six assets from the Release page into the same
+The Release also keeps the earlier USD Forecast bundle
+(`chainrisk-continued_activity-v0.1.0.zip`) for rollback; the `gh` pattern above
+downloads it too, and it is ignored below. Alternatively, download those six assets from the Release page into the same
 directory. A GitHub read credential is used only for downloading private assets;
 it is different from the Hugging Face token used to upload/call the Space.
 
 Verify downloads before extracting, then verify each extracted bundle:
 
 ```bash
-(cd deploy/.build/release-downloads && shasum -a 256 -c SHA256SUMS)
+(cd deploy/.build/release-downloads && shasum -a 256 -c --ignore-missing SHA256SUMS)
 mkdir -p deploy/.build/release-models
-for task in phishing ponzi honeypot rug_pull continued_activity; do
-  unzip -q "deploy/.build/release-downloads/chainrisk-$task-v0.1.0.zip" \
-    -d deploy/.build/release-models
-  (cd "deploy/.build/release-models/chainrisk-$task-v0.1.0" && shasum -a 256 -c SHA256SUMS)
+for bundle in chainrisk-phishing-v0.1.0 chainrisk-ponzi-v0.1.0 chainrisk-honeypot-v0.1.0 chainrisk-rug_pull-v0.1.0 chainrisk-continued_activity-v0.2.0; do
+  unzip -q "deploy/.build/release-downloads/$bundle.zip" -d deploy/.build/release-models
+  (cd "deploy/.build/release-models/$bundle" && shasum -a 256 -c SHA256SUMS)
 done
 ```
 
@@ -100,7 +148,7 @@ cat > deploy/.build/release-models/models.json <<'JSON'
     "ponzi": "chainrisk-ponzi-v0.1.0",
     "honeypot": "chainrisk-honeypot-v0.1.0",
     "rug_pull": "chainrisk-rug_pull-v0.1.0",
-    "continued_activity": "chainrisk-continued_activity-v0.1.0"
+    "continued_activity": "chainrisk-continued_activity-v0.2.0"
   }
 }
 JSON
@@ -379,10 +427,9 @@ always-running paid hardware if needed. HF authentication/startup failures may
 occur before the application can return JSON. Local disk is ephemeral; weights
 are reloaded from the Space repository on restart. The inference service stores
 no jobs/results. Backend real-mode integration remains separate work, and deployment does not
-establish additional model-quality claims. Forecast was trained with historical
-USD swap volumes; current live backend packets carry no historical USD
-(`log1p_positive_volume_usd = 0`), which is outside the training distribution
-and should be resolved before relying on live Forecast scores.
+establish additional model-quality claims. Forecast is trained without USD volume
+features, so live backend packets (which carry no historical USD) match its
+training inputs; any `log1p_positive_volume_usd` column is ignored by name.
 
 References: [Gradio Server Mode](https://www.gradio.app/guides/server-mode),
 [Spaces configuration](https://huggingface.co/docs/hub/spaces-config-reference),

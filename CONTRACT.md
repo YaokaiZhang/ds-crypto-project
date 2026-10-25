@@ -32,17 +32,19 @@ reports and keep online assessments distinct from offline benchmarks.
 ### System-wide rules
 
 Forecast model serving revision requested on 2026-10-25: the Gradio inference
-server now loads the trained Task A Forecast bundle
-(`continued_activity-d6a823768005e113`, Models Release asset
-`chainrisk-continued_activity-v0.1.0.zip`). It is the pruned temporal-split
-`edge_gcn` three-seed probability ensemble, exported unchanged by
-`scripts/export_forecast_bundle.py` and verified to reproduce recorded research
-scores. Its validation-selected ensemble threshold (0.446) replaces the temporary
-0.5 Forecast policy. Swap-free first-week graphs are scored as in training;
-backend eligibility rules are unchanged. This is a model-service change only:
-backend real-mode transport, the fixed mock fixture, Task A labels, splits and
-weights are unchanged. Live packets lack historical USD, which the model was
-trained with. See [deployment](deploy/README.md).
+server loads the trained Task A Forecast bundle
+(`continued_activity-b6140c2fdd0cc2e6`, Models Release asset
+`chainrisk-continued_activity-v0.2.0.zip`). It is the pruned temporal-split
+`edge_gcn` three-seed probability ensemble retrained without
+`log1p_positive_volume_usd` (node and edge), because live packets carry no
+historical USD; labels, splits, architecture and seeds are unchanged, and its
+validation/test metrics match the USD model (test AUC 0.942 vs 0.938).
+`scripts/export_forecast_bundle.py` verified it reproduces the recorded research
+scores. Its validation-selected ensemble threshold (0.537) is the Forecast
+policy. Swap-free first-week graphs are scored as in training; backend
+eligibility rules are unchanged. This is a model-service change only: backend
+real-mode transport and the fixed mock fixture are unchanged. The earlier USD
+bundle (`v0.1.0`) stays in the Release for rollback. See [deployment](deploy/README.md).
 
 Model-service ownership revision requested on 2026-10-25: the Gradio inference
 server owns trained binary thresholds, Scam risk bands and Forecast decisions,

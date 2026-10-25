@@ -24,6 +24,11 @@ from packages.forecast import export_forecast_bundle, load_forecast_bundle, pred
 from scripts.train_graphsage import average_precision, classification_metrics, safe_auc, select_threshold
 
 
+USD_FEATURE = "log1p_positive_volume_usd"
+USD_FREE_NOTE = ("Trained without USD volume features; live packets need no historical USD. "
+                 "Extra input columns such as log1p_positive_volume_usd are ignored by name.")
+
+
 def read_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
@@ -86,7 +91,8 @@ def export(args: argparse.Namespace) -> dict:
         "training": {"split_name": args.split_name, "graphs_sha256": hashlib.sha256(Path(args.graphs).read_bytes()).hexdigest(),
                      "graph_count": len(graphs), "test_use": "reported only; not used for checkpoint or threshold selection",
                      "ensemble_metrics": evaluation},
-        "input_notes": ("Trained with historical USD swap volumes. Inputs without amount_usd carry zero "
+        "input_notes": (USD_FREE_NOTE if USD_FEATURE not in names["node"] + names["edge"] else
+                        "Trained with historical USD swap volumes. Inputs without amount_usd carry zero "
                         "log1p_positive_volume_usd and are outside the training distribution."),
     }
     members = [(f"member-{metrics['seed']}.pt", checkpoint["model_state_dict"],
