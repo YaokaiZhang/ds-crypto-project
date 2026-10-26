@@ -31,7 +31,7 @@ The script:
 
 It ends with `PASS`, then prints the API key and the command that stops the
 server. It takes a few minutes, mostly for the build. CI runs the same script
-on every push ([`model-api.yml`](.github/workflows/model-api.yml)).
+for relevant code changes ([`model-api.yml`](.github/workflows/model-api.yml)).
 
 No Docker? Use a plain Python 3.11 venv instead (the venv goes under
 `deploy/.build/`):
@@ -56,8 +56,8 @@ The response has the `score`, the `decision` and the exact `model_version`.
 - [deploy/README.md](deploy/README.md): model bundles, the API contract,
   Hugging Face and other hosts.
 - [checks/README.md](checks/README.md): unified offline regression and live validation.
-- [CONTRACT.md](CONTRACT.md) and [GOAL.md](GOAL.md): project scope and evaluation rules.
-- [docs/](docs): data and training pipelines for each task.
+- [CONTRACT.md](CONTRACT.md): project scope, evaluation rules and delivery status.
+- [research/scam/README.md](research/scam/README.md): data and training commands.
 - [apps/](apps): the backend and the web frontend.
 
 Scores are research screening outputs, not calibrated probabilities of fraud.
@@ -66,9 +66,9 @@ Scores are research screening outputs, not calibrated probabilities of fraud.
 
 Homepage with sampled live Ethereum mainnet transactions:
 
-![Chainrisk homepage with live Ethereum transactions](docs/screenshots/live-transactions.png)
+![Chainrisk homepage with live Ethereum transactions](assets/live-transactions.png)
 
 Completed ERC-20 analysis showing the transaction graph, model screening results
 and token activity:
 
-![Completed LQTY token analysis with graph and screening results](docs/screenshots/token-analysis.png)
+![Completed LQTY token analysis with graph and screening results](assets/token-analysis.png)

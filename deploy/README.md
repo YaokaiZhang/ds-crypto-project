@@ -266,7 +266,7 @@ curl --fail --max-time 180 \
 ```
 
 Omit authentication headers for an unprotected public Space. The automated check
-uses `httpx` from the serving environment and reads the same authentication
+uses the Python standard library and reads the same authentication
 variables without displaying them:
 
 ```bash
@@ -274,8 +274,9 @@ variables without displaying them:
   https://OWNER-SPACE.hf.space --payload /absolute/path/to/model-input.json
 ```
 
-This checks health and metadata, then requires a real `ok` model score bound to
-the submitted task/sample. Without `--payload`, it only checks service health.
+This checks health, pinned model identities and all six recorded regression
+packets. `--payload` additionally replays a supplied model input with identity
+and returned-label checks.
 Cold starts may take longer; adjust `--timeout` (default 180 seconds).
 
 ## 6. Calling the API
@@ -350,7 +351,7 @@ score and label without loading deployment policies. Failed requests remain
 unscored. Production mock/demo scoring and its configuration switches have been
 removed; there is no fabricated fallback. Configure the same `INFERENCE_API_KEY` on
 both machines; see [MODAL.md](MODAL.md) and the
-[model-service contract](../apps/docs/MODEL_SERVICE_CONTRACT.md).
+[backend setup](../apps/backend/README.md).
 
 ## 7. Local uv environment and tests
 

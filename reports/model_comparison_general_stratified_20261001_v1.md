@@ -1,6 +1,6 @@
 # Token failure model comparison
 
-Generated 2026-10-01 from the current remote checkout.
+Generated from the experiment checkout.
 
 ## Scope
 

@@ -20,4 +20,4 @@ labels. Runtime threshold/display policy files belong to the model server.
 accepted feature names. The first-week wallet builder produces canonical
 unscaled graphs; the model service selects columns by name and applies its
 training-fitted scaler. There are no Forecast labeling thresholds in this config.
-See [the model-service contract](../../docs/MODEL_SERVICE_CONTRACT.md).
+See [backend setup](../README.md) for service configuration and input handling.

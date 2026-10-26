@@ -55,5 +55,5 @@ REST busy/invalid/unavailable conditions use HTTP 429/422/503 respectively;
 Gradio returns these conditions in the result dictionary. Both routes share
 one inference lock and have a 16 MiB request-body limit.
 
-The existing backend remains in its current mode. Connecting a real remote
-predictor is intentionally a later backend change.
+The backend connects through `ANALYSIS_MODE=eth_live`, `INFERENCE_URL` and the
+same application `INFERENCE_API_KEY`; it validates and forwards returned labels.

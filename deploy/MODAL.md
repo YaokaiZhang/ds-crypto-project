@@ -185,7 +185,7 @@ A request starts a container when scaled to zero; first use loads the baked-in
 weights. No periodic keep-alive is needed. Idle time during the 30-second
 scale-down window is billable.
 
-## Verified deployment (2026-10-26)
+## Verified deployment
 
 - Workspace/app: `grand-austin` / `chainrisk-inference`.
 - API: `https://grand-austin--chainrisk-inference-serve.us-east.modal.run`.
