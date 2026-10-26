@@ -2,6 +2,7 @@
 from scripts.build_wallet_graph import aggregate_wallet_edges, wallet_graph_for_target, validate_graph
 from ..adapters.analysis_store import utc
 from ..errors import ServiceError
+from ..adapters.remote_predictor import forecast_input_contract
 from .token_window import TokenWindow
 from .forecast_presentation import ForecastDisplay, basic_information
 
@@ -42,11 +43,13 @@ def prepare_input(context, ledger, sample_id):
     # Inference must never inherit a label or training partition from research.
     graph.pop('label',None)
     validate_graph(graph)
+    contract = forecast_input_contract()
     return {'protocol_version':'forecast-wallet-observations-1','task_id':'continued_activity',
         'sample_id':sample_id,'target':context['target'],'chain_id':1,'cutoff':utc(context['cutoff']),
         'cutoff_block':context['cutoff_block'],'cutoff_block_hash':context['cutoff_hash'],
-        'window_start':utc(context['t0']),'model_version':'forecast-wallet-graph-mock-v1',
-        'preprocessing':'unscaled; awaiting Forecast deployment manifest and training-fitted scaler',
+        'window_start':utc(context['t0']),'model_version':contract['model_version'],
+        'scaler_sha256':contract['scaler_sha256'],
+        'preprocessing':'unscaled; model service selects features by name and applies its frozen scaler',
         'historical_usd':'unavailable; no current-price substitution','quality':quality,
         'inputs':{'node_features':graph['node_features'],'edge_index':graph['edge_index'],'root_index':0},
         'graph_sample':graph},quality

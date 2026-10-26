@@ -93,8 +93,10 @@ activity semantics remain independent.
 Implemented on 2026-10-13 in TransactionGraphPanel/TransactionGraphCanvas through
 the existing GraphRenderer lifecycle. Node and edge validation is in the pure
 graphDisplay adapter. Model GraphSample and backend schemas are unchanged.
-The graph can be inspected in `/graph-preview.html` during Vite development;
-fixtures are isolated from the main build and are visibly labeled synthetic.
+The standalone synthetic graph preview was removed on 2026-10-26. Graph
+validation/layout regressions now live in `checks/frontend/graph-display.test.mjs`;
+run `python checks/run.py --suite frontend` from the repository root. The actual
+workbench renders only graphs returned by the real backend.
 
 Root/active labels use screen-space font sizing. Mobile hides non-selected
 neighbor labels and the extra root caption; dense graphs suppress inactive

@@ -109,7 +109,7 @@ requests have a ten-second deadline. Disabled endpoints never supply invented ro
   validation/reduction, connection lifecycle and display.
 
 ```bash
-.venv/bin/python -m unittest discover -s apps/backend/checks -v
+.venv/bin/python -m unittest discover -s checks/backend -v
 # From apps/frontend:
 npm run build
 node --test checks/*.test.mjs

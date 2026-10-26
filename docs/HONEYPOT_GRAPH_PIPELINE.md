@@ -64,7 +64,7 @@ with requireCanonical. There is no fallback to latest state. Current Alchemy
 endpoint passed a real mainnet/historical/EIP-1898 check on 2026-10-21:
 
 ```bash
-uv run --frozen python scripts/scam/check_rpc.py
+uv run --frozen python checks/live/check_rpc.py
 ```
 
 The probe validates WETH decimals at historical block 16,500,000. Exact successful

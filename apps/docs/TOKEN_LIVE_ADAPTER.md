@@ -1,5 +1,12 @@
 # ERC-20 live adapter
 
+Current serving update (2026-10-26): real inference uses `ANALYSIS_MODE=eth_live`.
+The fixed mock and synthetic demo implementation/configuration have been removed
+after real cloud verification. Earlier implementation/run notes below are
+historical where they mention those modes. See the
+[model-service contract](MODEL_SERVICE_CONTRACT.md) and
+[backend setup](../backend/README.md).
+
 Serving revision (2026-10-25): the model server owns score-to-label policies;
 the backend validates and forwards returned labels. Input-only configuration now
 ships in `apps/backend/config/`; backend runtime does not include or import
@@ -131,7 +138,7 @@ recipes/tensors, persisted random scores and malformed logs.
 
 Real mainnet acceptance jobs and input checks are recorded under
 reports/serving/token-live-smoke.json. Refresh this report with
-`.venv/bin/python scripts/verify-token-live.py`; `--submit` submits the named
+`.venv/bin/python checks/live/verify_analysis.py --family token_scam`; `--submit` submits the named
 acceptance tokens if not already recorded. This script only calls the local
 API and inspects local results, never handles provider credentials.
 

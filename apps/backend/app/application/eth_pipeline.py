@@ -1,4 +1,4 @@
-"""Real ETH analysis orchestration; model scoring is explicitly simulated."""
+"""Real ETH collection with remote model scoring."""
 import asyncio
 import hashlib
 
@@ -6,7 +6,8 @@ from packages.graph import build_graph_sample, graph_is_usable, recent_neighbors
 
 from ..adapters.analysis_rpc import AnalysisRpc
 from ..adapters.etherscan_client import BackendEtherscan
-from ..adapters.mock_predictor import EthInputRegistry, MockPredictor
+from ..adapters.model_inputs import EthInputRegistry
+from ..adapters.remote_predictor import RemotePredictor, outcome_cache_kind
 from ..adapters.analysis_store import utc
 from ..api.schemas import AnalysisRequest, AnalysisResult
 from ..domain import EntityResolution
@@ -25,7 +26,7 @@ class EthPipeline:
         self.rpc = rpc or AnalysisRpc(settings)
         self.etherscan = etherscan or BackendEtherscan(settings, budget)
         self.registry = predictor.registry if predictor else self.registry_class(settings)
-        self.predictor = predictor or MockPredictor(settings, self.registry)
+        self.predictor = predictor or RemotePredictor(settings, self.registry)
 
     async def close(self):
         await self.rpc.close()
@@ -142,15 +143,16 @@ class EthPipeline:
             self.store.save(lease, {'graphs': views},
                             artifacts={('graph_sample', task): sample, ('model_audit', task): audit})
 
-        collector.stage('predicting', 'Sending real model inputs to the temporary target; scores are simulated')
+        collector.stage('predicting', 'Requesting model scores and labels')
         for task in eligible:
             sample = samples[task]
+            cache_kind = outcome_cache_kind(task, self.registry)
             if not graph_is_usable(sample):
                 outcomes[task] = {'task_id': task, 'status': sample['quality']['status'], 'score': None,
                     'sample_id': sample['sample_id'], 'reason_code': sample['quality']['status'],
                     'reason': 'No sufficient compatible activity was found for this model. No score was generated.'}
                 continue
-            cached = self.store.artifact(lease['id'], 'mock_outcome_fixed_0999_v1', task)
+            cached = self.store.artifact(lease['id'], cache_kind, task)
             if cached:
                 if cached['sample_id'] != sample['sample_id']:
                     raise ServiceError('data_incomplete')
@@ -160,7 +162,7 @@ class EthPipeline:
                     outcome, delivery = await self.predictor.predict(sample, collector.directory)
                     outcomes[task] = outcome
                     self.store.save(lease, {'tasks': [outcomes[t] for t in request.tasks]},
-                        artifacts={('mock_outcome_fixed_0999_v1', task): outcome, ('model_delivery', task): delivery})
+                        artifacts={(cache_kind, task): outcome, ('model_delivery', task): delivery})
                 except (ValueError, KeyError):
                     outcomes[task] = {'task_id': task, 'status': 'model_error', 'score': None,
                         'reason_code': 'model_input_mismatch', 'reason': 'Model input preparation failed. Real chain data remains available.'}
@@ -171,7 +173,7 @@ class EthPipeline:
         result = self.store.get(lease['id'])
         result.update(status='completed' if complete else 'partial', stage='completed',
             tasks=[outcomes[t] for t in request.tasks],
-            message='Real Ethereum data collected. Scores and labels use the fixed mock response (0.999).' if complete else
+            message='Real Ethereum data and trained model assessments are ready.' if complete else
                     'Real chain data is available; one or more assessments have no score.',
             progress={'state': 'completed' if complete else 'partial', 'unit': 'tasks',
                       'completed': len(outcomes), 'total': len(outcomes), 'total_final': True})

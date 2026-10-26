@@ -1,5 +1,12 @@
 # Live backend contract and implementation status
 
+Current serving update (2026-10-26): real inference uses `ANALYSIS_MODE=eth_live`.
+The fixed mock and synthetic demo implementation/configuration have been removed
+after real cloud verification. Earlier implementation/run notes below are
+historical where they mention those modes. See the
+[model-service contract](MODEL_SERVICE_CONTRACT.md) and
+[backend setup](../backend/README.md).
+
 Serving revision (2026-10-25): the model server owns score-to-label policies;
 the backend validates and forwards returned labels. Input-only configuration now
 ships in `apps/backend/config/`; backend runtime does not include or import
@@ -28,24 +35,21 @@ request caches and quota pause/recovery. A separate worker processes at most two
 jobs globally on this host. See [ETH live adapter](ETH_LIVE_ADAPTER.md) for launch
 commands and real-address verification.
 
-The model boundary is temporarily simulated at the user's explicit request:
-send compatible input to a fixed loopback test target, then validate and persist
-the fixed service-shaped 0.999 response and supplied label. API/artifacts mark simulated provenance and
-capabilities keep model_available=false. The user requested the original front
-end text and one recent display graph; no simulation badges or graph-scope switch.
-ERC-20 now shares the live queue/worker/quota boundary and follows the same
-complete 30-day progressive display, bounded delayed graph and simulated
-predictor principles. Historical token/pool verification and separate frozen
-directed edge-aware model inputs are documented in
-[ERC-20 live adapter](TOKEN_LIVE_ADAPTER.md). Unsupported assets/pools and empty
-or incompatible model inputs remain Unavailable with a null score and reason.
-Forecast now shares these live foundations with its own creation-based
-first-seven-day window, wallet/pool/token input and fixed Continued activity
-mock response. The model server owns its eventual decision policy. See [Forecast live adapter](FORECAST_LIVE_ADAPTER.md).
-Its packet explicitly awaits the Forecast bundle/scaler; historical USD stays
-missing when unavailable. Real trained model serving and multi-host
-PostgreSQL deployment remain pending. Template mode still returns 501; static
-demo and the independent feed retain their existing switches.
+`eth_live` now calls the deployed Modal model service for all five tasks;
+the fixed mock mode and synthetic demo have been removed. Collection,
+applicability, graph, ledger, quota and progress behavior are retained.
+The server owns thresholds and labels; real transport validates identities and
+persists returned results, with no mock fallback. Backend configuration is local
+to `apps/backend/config/` and server-only credentials; `deploy/` is not shipped.
+See [the service contract](MODEL_SERVICE_CONTRACT.md) and
+[Modal/VPS instructions](../../deploy/MODAL.md).
+
+ERC-20 retains historical supported-pool verification and directed edge-aware
+model inputs. Forecast retains the creation-based first-seven-day wallet graph,
+now sent to the released no-USD v0.2.0 ensemble. Unsupported assets/pools and
+empty/incompatible inputs remain Unavailable. Multi-host PostgreSQL migration
+remains pending; the present durable queue is single-host. The default unconfigured template and the independent homepage feed retain
+their explicit switches.
 
 ## Server credentials
 

@@ -94,8 +94,8 @@ class AnalysisStore:
                     return json.loads(row['result'])
             identity, stamp = str(uuid4()), utc()
             result = dict(analysis_id=identity, status='queued', stage='queued', target=command['target'],
-                family=command['family'], result_origin='chain_data_simulated_scores', created_at=stamp, updated_at=stamp,
-                message='Queued for real Ethereum collection. Model scores will be simulated.',
+                family=command['family'], result_origin='chain_data_model_scores', created_at=stamp, updated_at=stamp,
+                message='Queued for real Ethereum collection and model assessment.',
                 tasks=[{'task_id': task, 'status': 'pending', 'score': None} for task in command['tasks']],
                 graphs={}, progress={'state': 'queued', 'unit': 'requests', 'completed': 0})
             db.execute('INSERT INTO jobs(id,command,fingerprint,idem,result,created) VALUES (?,?,?,?,?,?)',

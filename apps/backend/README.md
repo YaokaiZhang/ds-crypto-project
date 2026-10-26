@@ -1,135 +1,100 @@
 # Chainrisk backend
 
-Model-service contract (2026-10-25): Gradio owns model/risk/Forecast thresholds.
-The backend consumes score + label through `app/adapters/model_response.py`,
-without deriving labels from numeric scores. Current live mock returns fixed
-0.999 / High Risk (Scam) or 0.999 / Continued activity (Forecast); empty or invalid
-inputs remain unscored. `config/` contains backend-owned input manifests/scalers
-and relative indexes. Include it in backend deployment; do not ship `deploy/`.
-The backend still needs the shared `packages/` runtime and Task A graph helpers
-under `scripts/`, as before. See [the model-service contract](../docs/MODEL_SERVICE_CONTRACT.md).
+`ANALYSIS_MODE=eth_live` enables real Ethereum collection and authenticated model
+inference. The backend collects observations, builds frozen task-specific graphs
+and calls the Modal service. It validates and persists returned scores and labels
+without applying thresholds. Unsupported/incomplete inputs and failed inference
+remain unscored. Mock predictors, the fixed 0.999 mode and the synthetic demo
+adapter have been removed; `template` is the default unconfigured mode.
 
-ETH/ERC-20/Forecast real-data collection and the durable local worker are now available in
-`ANALYSIS_MODE=eth_live_mock`, with fixed 0.999 service-shaped mock responses explicitly
-requested by the user. Run `.venv/bin/python scripts/start-eth-live.py` from the
-repository root to start API/worker/frontend. See [ETH live adapter](../docs/ETH_LIVE_ADAPTER.md)
-for the model input contract, real-address checks and restart/configuration.
-The frontend retains its original text and a recent graph capped at 64 nodes
-and at most 30 days. Model provenance stays
-explicit in API/artifacts; trained inference remains unavailable.
+See [the model-service contract](../docs/MODEL_SERVICE_CONTRACT.md),
+[deployment and credentials](../../deploy/MODAL.md), and the collection contracts
+for [ETH](../docs/ETH_LIVE_ADAPTER.md), [ERC-20](../docs/TOKEN_LIVE_ADAPTER.md) and
+[Forecast](../docs/FORECAST_LIVE_ADAPTER.md).
 
-The [2026-10-24 live backend contract](../docs/LIVE_BACKEND_IMPLEMENTATION.md)
-records confirmed serving behavior and the current implementation boundary.
-Backend-local credential loading, shared Etherscan pacing (3/sec, 99,000 per
-UTC day), HTTP error handling, RPC address classification, risk policies and
-progress DTO/UI support are implemented and tested. ETH now connects these
-components through a durable local worker. ERC-20 follows the same complete
-progressive 30-day ledger/activity and bounded delayed-graph principles; see
-[ERC-20 live adapter](../docs/TOKEN_LIVE_ADAPTER.md). Unsupported assets/pools
-show Unavailable with a reason and no score. Forecast uses its own real first-week
-window and wallet/pool/token graph, with a fixed Continued activity mock label; see [Forecast live adapter](../docs/FORECAST_LIVE_ADAPTER.md).
-Trained model serving remains unimplemented; Forecast's deployment scaler/bundle
-is still pending and its temporary input declares unscaled preprocessing.
+## Install and configure
 
-An explicitly enabled local analysis adapter is now available. Run
-`ANALYSIS_MODE=demo .venv/bin/python -m uvicorn app.main:app --app-dir apps/backend`
-from the repository root to exercise both workbenches with backend phase delays,
-complete synthetic bundles and replayable SSE. Default template behavior described
-below remains unchanged. See [analysis adapter integration](../docs/ANALYSIS_ADAPTER_INTEGRATION.md)
-for configuration, response boundaries and module removal.
-
-A real Ethereum homepage feed is also available with `FEED_ENABLED=true` and a
-separate collector process. See [feed integration](../docs/FEED_INTEGRATION.md)
-for startup, the PublicNode default RPC and summary/recovery semantics.
-
-FastAPI application skeleton under `app/`, sharing the root Python 3.11 uv
-project. Model inference remains unavailable. With both optional adapters disabled, no
-database connections, provider requests or model loads occur on startup.
-
-## Install and start
-
-Run from the `ds-crypto-project` root:
+Use the root Python 3.11 uv environment. The `serving` extra supplies API and
+worker dependencies; model inference dependencies are on Modal. Backend request
+preparation sends canonical graphs without duplicate tensors and needs no
+PyTorch/NumPy installation. The Windows host uses a standard Python `.venv`.
 
 ```bash
 uv sync --frozen --extra serving
-uv run --frozen --extra serving uvicorn app.main:app --app-dir apps/backend --reload
 ```
 
-API documentation is at `http://127.0.0.1:8000/docs`. Liveness returns 200;
-readiness returns 503. Capabilities advertise all integrations as unavailable.
-Validated analysis, result and feed requests return structured HTTP 501 until
-implemented; no fake queued IDs, data or model scores are returned.
+Configure the same server-only environment variables for API and worker, or put
+literal strings in ignored `apps/backend/local_secrets.py` (environment takes
+precedence):
 
-The root optional `serving` group supplies FastAPI/Pydantic/Uvicorn and the
-HTTP client needed by endpoint checks. `apps/` remains excluded from the root
-research wheel; Uvicorn explicitly loads this source directory. No second
-training environment or backend-specific lockfile is created.
+```text
+ANALYSIS_MODE=eth_live
+INFERENCE_URL=https://YOUR-DEPLOYMENT.modal.run
+INFERENCE_API_KEY=<same application key as the Modal Secret>
+INFERENCE_TIMEOUT=180
+ETHEREUM_RPC_URL=<provider URL>
+ETHERSCAN_API_KEY=<provider key>
+```
 
-## Backend dependency installation
+`.env.example` is a reference; settings do not automatically source `.env`.
+Credentials are read as literal assignments without executing the file. Use mode
+0600. The Modal management token from `modal setup` is separate from the shared
+inference key; the backend needs only the latter. Keys never enter browser config.
 
-[`../requirement.txt`](../requirement.txt) lists the direct API/demo/feed runtime
-dependencies in a format accepted by pip and conda. Package managers resolve
-transitive dependencies; versions are not locked, except for the required
-Pydantic minimum. The existing root `pyproject.toml` and `uv.lock` remain
-authoritative for the shared research/serving environment. SQLite and other standard-library
-modules do not need separate pip packages. Real model dependencies are managed
-by the root research environment when those adapters are implemented.
+## Start locally
 
-For a separate Python 3.11+ backend environment, install from the repository root
-using either package manager:
+Run from the repository root with the existing environment:
 
 ```bash
-python -m pip install -r apps/requirement.txt
-# Or, in an activated conda environment:
-conda install -c conda-forge --file apps/requirement.txt
+.venv/bin/python scripts/start-eth-live.py --restart-backend
 ```
 
-Then run the API or collector from the repository root:
+This starts API/worker/frontend and checks readiness. Manual entrypoints for a
+VPS process manager are:
 
 ```bash
-PYTHONPATH=packages ANALYSIS_MODE=demo python -m uvicorn app.main:app --app-dir apps/backend
-# Optional real feed, in a separate terminal with the same environment:
-PYTHONPATH=packages FEED_ENABLED=true python -m apps.backend.app.workers.feed
+.venv/bin/python -m uvicorn app.main:app --app-dir apps/backend --host 127.0.0.1 --port 8000
+.venv/bin/python -m apps.backend.app.workers.analysis
 ```
 
-The `PYTHONPATH` setting makes the repository's local `chainrisk.tasks` registry
-available without installing the root training dependencies. Enable the API feed
-with `FEED_ENABLED=true` as documented in the feed guide. Dependency installation
-does not start any service.
+API documentation is at `http://127.0.0.1:8000/docs`. Check
+`/api/v1/health/ready` and `/api/v1/capabilities` for `mode=eth_live`,
+`score_mode=model` and five verified model identities. Cold starts may delay the
+first check. Metadata checks are cached for 60 seconds. Missing configuration or
+unavailable model service never advertises model readiness.
 
-## Develop through the templates
+Include `apps/backend/config/`, shared `packages/`, and the graph helpers under
+`scripts/` on the backend host. No `deploy/`, weights, labeling policies or Modal
+management credentials are needed there. Model weights/scalers and label
+thresholds live in the separate inference service.
 
-- `app/api/`: DTOs, routers, request validation and dependency lookup.
-- `app/application/`: facade, pipeline, task strategies and feed coordination.
-- `app/ports/`: provider, repository, graph, analytics and predictor protocols.
-- `app/adapters/`: unimplemented provider/PostgreSQL/chainrisk integration classes.
-- `app/container.py`: injection/composition root; replace implementations here.
-- `app/workers/`: separate analysis and feed entrypoints.
-- `app/domain.py`: framework-independent command/context/result values.
+## Durable collection and results
 
-Analysis production methods stop with FeatureNotImplemented until replaced;
-the optional demo and live-feed adapters are the documented exceptions. Existing
-models and deterministic transformations remain in `packages/chainrisk`; do not
-copy research trainers into this app. Freeze graph/sample identity before graph
-presentation and prediction. Model loading belongs to the analysis worker.
+The present queue is single-host SQLite with fenced leases, replayable events,
+immutable input artifacts and bounded worker retries. API/worker must share the
+same analysis database/artifact paths. Etherscan uses one shared account ledger:
+3 request starts/second, 99,000 attempts per UTC day, including retries. Share
+`ETHERSCAN_QUOTA_FILE` between all cooperating processes for the same account.
+Keep quota pause/recovery and the frozen cutoff when restarting.
 
-`.env.example` lists server-only variables and is not automatically loaded.
-Provider credentials use process environment first, then literal strings in
-Git-ignored `apps/backend/local_secrets.py`; an explicitly empty environment
-value disables fallback. The backend-local copy has mode 0600. No file is
-executed to read credentials. Keep one `ETHERSCAN_QUOTA_FILE` for each account,
-shared by every cooperating API/worker and concurrent local collector process.
+The display graph and complete activity ledger remain independent of each
+model's frozen sampling recipe. Forecast uses the creation-based first-seven-day
+wallet graph and the released no-USD v0.2.0 ensemble. All input metadata is local
+to `config/`; the model service alone scales the canonical graph and converts
+scores to labels. Responses must match sample, target, cutoff, model and scaler.
+Historical results retain their provenance. New workers refuse unfinished legacy
+simulated jobs rather than turning them into real model assessments.
 
-## Checks and worker entrypoints
+The real homepage feed is independent: set `FEED_ENABLED=true` on API and start
+`python -m apps.backend.app.workers.feed`. See [feed integration](../docs/FEED_INTEGRATION.md).
+
+## Checks
 
 ```bash
-uv run --frozen --extra serving python -m unittest discover -s apps/backend/checks -v
-uv run --frozen --extra serving python -m apps.backend.app.workers.analysis --help
-uv run --frozen --extra serving python -m apps.backend.app.workers.feed --help
+.venv/bin/python checks/run.py --suite backend
 ```
 
-The analysis worker fails fast in template mode; eth_live_mock enables the
-documented real ETH/ERC-20 worker. The feed
-worker requires `FEED_ENABLED=true`; it then collects real mainnet transactions.
-See [template development](../docs/TEMPLATE_DEVELOPMENT.md) and
-[website architecture](../docs/WEBSITE_ARCHITECTURE.md).
+Tests use controlled HTTP/provider fixtures to cover identity validation, auth,
+retries, quotas, graph construction, persistence, failure behavior and label
+passthrough. Production has no fixture scoring path. Default `template` returns
+explicit unavailable/501 responses without fabricated jobs or scores.

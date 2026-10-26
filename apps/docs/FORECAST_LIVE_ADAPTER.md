@@ -1,5 +1,12 @@
 # Forecast live adapter
 
+Current serving update (2026-10-26): real inference uses `ANALYSIS_MODE=eth_live`.
+The fixed mock and synthetic demo implementation/configuration have been removed
+after real cloud verification. Earlier implementation/run notes below are
+historical where they mention those modes. See the
+[model-service contract](MODEL_SERVICE_CONTRACT.md) and
+[backend setup](../backend/README.md).
+
 Serving revision (2026-10-25): the model server owns score-to-label policies;
 the backend validates and forwards returned labels. Input-only configuration now
 ships in `apps/backend/config/`; backend runtime does not include or import
@@ -72,7 +79,7 @@ do not cap ledger collection or model graphs. Repeated progress/provenance
 updates reuse the existing frontend render identity, preserving zoom/animation.
 No graph-scope switch or incompleteness badge is added.
 
-## Input and temporary prediction contract
+## Input and prediction contract
 
 Reuse `scripts.build_wallet_graph.aggregate_wallet_edges` and
 `wallet_graph_for_target` for the label-free model artifact. All first-week
@@ -87,36 +94,28 @@ Etherscan event logs do not supply historical amountUSD or transaction origin.
 Keep both missing, with explicit missingness/quality flags. Do not convert
 current prices into historical USD or use the recipient as a missing sender.
 The shared wallet builder explicitly supports missing historical USD through
-its quality features. This checkout has no admitted Forecast deployment bundle
-or training-fitted scaler. The temporary payload therefore declares
-`forecast-wallet-observations-1`, unscaled features and pending deployment
-preprocessing; it does not claim a fitted model input identity. Deploying the
-real model still requires that owner's manifest/scaler integration and checks.
+its quality features. The real adapter selects the published no-USD Forecast v0.2.0 bundle,
+`continued_activity-b6140c2fdd0cc2e6`. It sends the canonical unscaled graph with
+that identity and scaler checksum. The server selects 14 node / 8 edge features
+by name, applies its frozen scaler and runs the three-member edge-aware GCN
+ensemble. The builder carries the exact release model and scaler identities.
+No historical USD substitution is needed or performed.
 
-For a complete first-week graph with at least one valid Swap, persist the exact
-input packet and attempt POST to http://127.0.0.1:18081/predict. At the user's
-explicit request the test target is followed by a fixed 0.999 / Continued
-activity service-shaped mock response, persisted across recovery. API/artifacts mark simulated
-origin; model_available remains false. The frontend retains its existing copy.
-Invalid token/pool/participant/history or no swaps yields a null score,
-Unavailable and the existing small reason text.
+For a complete first-week graph with at least one valid Swap, `eth_live`
+persists the exact input packet, sends it to the authenticated HTTPS model server,
+and validates the returned score, label, provenance and sample/model/scaler
+identity. Failures remain unscored, with bounded worker retries for transient
+errors. Production fixture scoring has been removed. Invalid token/pool/participant/history or no
+swaps remains Unavailable with a null score and reason.
 
-`deploy/registry/forecast_policy.json` belongs only to the model service;
-`FORECAST_POLICY_PATH` overrides it there. The backend does not load it.
-The fixed mock fixture is independent of this threshold. The server policy binds the model version,
-positive score meaning, threshold and outcome definition:
-
-- score target: continued_activity, uncalibrated, range [0,1].
-- [0,0.5): low_volume_dead (frontend Low volume).
-- [0.5,1]: continued_activity (frontend Continued activity).
-- observation: first 7 days; horizon: the following 90 days.
-- outcome boundary: selected-pool cumulative Swap volume USD 1000.
-
-This 0.5 threshold is user-authorized temporary configuration, not a trained or
-validated threshold. Compare the unrounded score; the frontend displays three
-decimals. Forecast never emits Scam High/Medium/Low bands. Replace/admit the
-policy alongside the eventual Forecast model version rather than silently
-reusing another task's thresholds.
+The model service alone loads `deploy/registry/forecast_policy.json`. It binds
+Forecast v0.2.0 to the released validation-selected threshold
+0.5369952122370402: below is `low_volume_dead` / Low volume; at or above is
+`continued_activity` / Continued activity. The first-seven-day observation,
+following 90-day horizon and USD 1000 selected-pool Swap outcome definition are
+unchanged. Scores remain uncalibrated; Forecast never emits Scam risk bands.
+The backend consumes the supplied label without thresholding and needs no
+`deploy/` directory. See [the service contract](MODEL_SERVICE_CONTRACT.md).
 
 ## Verification
 
@@ -129,7 +128,7 @@ ETH/ERC-20 and static Forecast checks remain applicable.
 
 Real acceptance jobs for GNO, RAI and LQTY are recorded under
 reports/serving/forecast-live-smoke.json. Refresh with
-`.venv/bin/python scripts/verify-forecast-live.py`; `--submit` creates the named
+`.venv/bin/python checks/live/verify_analysis.py --family forecast`; `--submit` creates the named
 acceptance jobs through the local API when absent. Tests use controlled provider
 fixtures only; mainnet jobs use real credentials/caches and no synthetic rows.
 

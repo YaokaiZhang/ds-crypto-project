@@ -1,5 +1,12 @@
 # Analysis adapter integration
 
+Current serving update (2026-10-26): real inference uses `ANALYSIS_MODE=eth_live`.
+The fixed mock and synthetic demo implementation/configuration have been removed
+after real cloud verification. Earlier implementation/run notes below are
+historical where they mention those modes. See the
+[model-service contract](MODEL_SERVICE_CONTRACT.md) and
+[backend setup](../backend/README.md).
+
 Date: 2026-10-13. This implements the user-requested local testing workflow, not
 real Ethereum collection, trained model inference or an admitted risk-band policy.
 
@@ -136,7 +143,7 @@ independent integration below.
 ## Verification
 
 ```bash
-.venv/bin/python -m unittest discover -s apps/backend/checks -v
+.venv/bin/python -m unittest discover -s checks/backend -v
 npm --prefix apps/frontend run build
 ```
 

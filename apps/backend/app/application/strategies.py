@@ -31,5 +31,5 @@ TASK_STRATEGIES = {
     for task_id, spec in TASK_REGISTRY.items()
 }
 
-# Forecast has its own first-week resolver and mock predictor; no trainer is loaded.
+# Forecast has its own first-week resolver and remote predictor; no trainer is loaded.
 TASK_STRATEGIES['continued_activity'] = TaskStrategy('continued_activity', 'token', 'wallet_pool_token', 'forecast')

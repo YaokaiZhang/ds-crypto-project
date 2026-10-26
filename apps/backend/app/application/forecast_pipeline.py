@@ -1,10 +1,10 @@
-"""Real first-week Forecast collection with a user-authorized mock boundary."""
+"""Real first-week Forecast collection with remote model scoring."""
 import asyncio
 import hashlib
 
 from ..adapters.analysis_rpc import AnalysisRpc
 from ..adapters.etherscan_client import BackendEtherscan
-from ..adapters.forecast_predictor import ForecastMockPredictor
+from ..adapters.remote_predictor import ForecastRemotePredictor, outcome_cache_kind
 from ..api.schemas import AnalysisRequest, AnalysisResult
 from ..errors import ServiceError
 from .forecast_collection import ForecastCollection
@@ -17,7 +17,7 @@ class ForecastPipeline:
         self.settings,self.store,self.budget = settings,store,budget
         self.rpc = rpc or AnalysisRpc(settings)
         self.etherscan = etherscan or BackendEtherscan(settings,budget)
-        self.predictor = predictor or ForecastMockPredictor(settings)
+        self.predictor = predictor or ForecastRemotePredictor(settings)
 
     async def close(self):
         await self.rpc.close(); await self.etherscan.close(); await self.predictor.close()
@@ -61,15 +61,16 @@ class ForecastPipeline:
                     outcome.update(status='no_activity',reason_code='no_activity',
                         reason='No swap activity was found in the selected pools during the first seven days. No score was generated.')
                 else:
-                    collector.stage('predicting','Sending the real first-week input to the temporary Forecast predictor')
-                    cached = self.store.artifact(lease['id'],'mock_outcome_fixed_0999_v1','continued_activity')
+                    collector.stage('predicting','Requesting the Forecast model score and label')
+                    cache_kind = outcome_cache_kind('continued_activity')
+                    cached = self.store.artifact(lease['id'],cache_kind,'continued_activity')
                     if cached:
                         if cached['sample_id'] != sample_id:
                             raise ServiceError('data_incomplete')
                         outcome = cached
                     else:
                         outcome,delivery = await self.predictor.predict(payload,collector.directory)
-                        self.store.save(lease,{'tasks':[outcome]},artifacts={('mock_outcome_fixed_0999_v1','continued_activity'):outcome,
+                        self.store.save(lease,{'tasks':[outcome]},artifacts={(cache_kind,'continued_activity'):outcome,
                             ('model_delivery','continued_activity'):delivery})
             header = await self.rpc.call('eth_getBlockByNumber',[hex(context['cutoff_block']),False])
             if not isinstance(header,dict) or header.get('hash') != context['cutoff_hash']:

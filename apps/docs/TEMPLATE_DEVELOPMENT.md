@@ -1,5 +1,12 @@
 # Application template development
 
+Current serving update (2026-10-26): real inference uses `ANALYSIS_MODE=eth_live`.
+The fixed mock and synthetic demo implementation/configuration have been removed
+after real cloud verification. Earlier implementation/run notes below are
+historical where they mention those modes. See the
+[model-service contract](MODEL_SERVICE_CONTRACT.md) and
+[backend setup](../backend/README.md).
+
 Date: 2026-10-12. Status: runnable frontend/FastAPI scaffolds with explicit
 unimplemented integrations. This is the selected basis for subsequent website
 development. No chain scraping, persistent jobs, graph renderer, real inference,

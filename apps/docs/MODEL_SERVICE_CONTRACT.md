@@ -1,6 +1,6 @@
 # Model-service requests, responses and ownership
 
-Serving contract revision: 2026-10-25. The backend and model server run on
+Serving contract revision: 2026-10-26. The backend and model server run on
 different machines. Backend deployment does not include `deploy/`.
 
 ## Responsibilities
@@ -25,13 +25,16 @@ manifests and sampling recipes. The ETH/token packet carries:
 - `protocol_version`: `eth-graph-inference-1` or `token-graph-inference-1`.
 - `task_id`, `sample_id`, `target`, frozen `cutoff` and `model_version`.
 - `graph_recipe`, `feature_names`, `scaler_sha256` and unscaled `graph_sample`.
-- Existing pre-scaled `inputs` for audit/backward compatibility. The model
-  service ignores these tensors and scales the canonical graph exactly once.
+- The backend sends no duplicate pre-scaled tensors and does not import PyTorch.
+  The model service scales the canonical graph exactly once. Older optional
+  `inputs` packets remain readable by the service but are ignored.
 
 Forecast keeps `forecast-wallet-observations-1`, a creation-based first-seven-day
 wallet/pool/token graph, label-free inference metadata and explicit quality.
-Its current input is unscaled and explicitly awaits the owner's deployment
-bundle/scaler. That temporary packet is not admission to a trained Forecast model.
+The native builder uses the backend-local Forecast v0.2.0 identity and
+scaler checksum from `apps/backend/config/forecast_input.json`. Its unscaled
+canonical graph is transformed only by the server; the no-USD model selects
+14 node / 8 edge columns by name from the full live schema.
 
 ## Responses
 
@@ -62,31 +65,29 @@ Missing models or unusable inputs return a null score and no display label.
 Malformed responses, missing labels, NaN/out-of-range scores, mismatched samples
 or model identities are errors; the backend must not manufacture labels or scores.
 
-## Current fixed mock
+## Real remote transport
 
-`ANALYSIS_MODE=eth_live_mock` still collects real data and persists exact model
-inputs. The reserved loopback send remains an explicit test boundary; received
-HTTP data is ignored in this mode. Instead, a service-shaped fixture is decoded
-through the same response validator:
+`ANALYSIS_MODE=eth_live` uses `RemotePredictor` and `ForecastRemotePredictor`.
+API and worker receive `INFERENCE_URL` and `INFERENCE_API_KEY` as server-only
+configuration, independently of deployment source. HTTPS POST `/predict` sends
+`X-Inference-Key`, times out after 180 seconds by default, retries HTTP 429 at most
+three times, and validates responses with origin `model`, exact sample/target/
+cutoff/model identity and the matching scaler checksum. Server errors and timeouts
+use the durable worker's bounded retry path; authentication/input failures remain
+unscored errors. No inference failure produces a fabricated score.
 
-- All four eligible Scam tasks: `score=0.999`, `label=High Risk`, `risk_band=high`,
-  `decision=screen_positive`.
-- Eligible Forecast: `score=0.999`, `label=Continued activity`,
-  `decision=continued_activity`, matching Forecast metadata, no risk band.
-- Fixtures carry `result_origin=simulated`, `simulated:` model identities and
-  `mock-fixed-0999-v1` policy identity; capabilities never claim real weights.
-- No random generator or backend threshold policy participates. This fixture
-  remains independent of both the numeric thresholds and availability of a
-  running model service.
-- Unsupported, empty, immature or invalid inputs remain Unavailable and unscored.
+The service provides `/models`; backend capabilities/readiness check the loaded
+model and scaler identities against backend-local config, caching observations for
+60 seconds. Configuration alone never sets `model_available=true`. A remote
+outage disables readiness while collected results remain available.
 
-The fixed response uses a distinct persisted cache identity. In-progress jobs
-recovering old random artifacts produce the new fixed response; they do not reuse
-an obsolete random score. Completed historical results remain intact.
+Accepted real jobs use `result_origin=chain_data_model_scores`; task results use
+`result_origin=model`. Result caches include the remote protocol and model identity. Workers refuse to
+execute unfinished legacy simulated jobs; completed historical records retain
+their original provenance. The fixed mock mode, local loopback transport and
+synthetic demo code have been removed, including their configuration switches.
 
-Real remote transport is a later change. It must replace the explicit mock
-fixture with the server response, call the same validator with origin `model`,
-and update capabilities. A real transport failure must never fall back to this
-mock fixture. The model service now serves the real Forecast bundle
-(`continued_activity-b6140c2fdd0cc2e6`); a real Forecast adapter must send that
-`model_version` so this validator accepts the response.
+Forecast uses `continued_activity-b6140c2fdd0cc2e6` from Release v0.2.0, retrained
+without USD features. The model service owns its released threshold
+0.5369952122370402. The backend input metadata carries no labeling thresholds.
+See [Modal setup and VPS configuration](../../deploy/MODAL.md).

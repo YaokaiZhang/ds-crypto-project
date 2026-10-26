@@ -26,8 +26,8 @@ The script:
    and checks every checksum;
 3. starts the API on `http://127.0.0.1:7860` with a random API key;
 4. checks that all five models load, that a request without the key gets 401,
-   and that two real held-out tokens in [`deploy/fixtures/`](deploy/fixtures)
-   get the same scores the research run recorded.
+   and that six [recorded packets](checks/fixtures/model_api) reproduce expected
+   scores: four unlabeled Scam regressions and two upstream Forecast examples.
 
 It ends with `PASS`, then prints the API key and the command that stops the
 server. It takes a few minutes, mostly for the build. CI runs the same script
@@ -46,7 +46,7 @@ With the server running, set `KEY` to the key the script printed and send one
 of the fixture tokens:
 
 ```bash
-python3 -c 'import json; print(json.dumps(json.load(open("deploy/fixtures/forecast-continued_activity.json"))["packet"]))' | curl -s -X POST http://127.0.0.1:7860/predict -H "X-Inference-Key: $KEY" -H "Content-Type: application/json" -d @-
+python3 -c 'import json; print(json.dumps(json.load(open("checks/fixtures/model_api/forecast-continued_activity.json"))["packet"]))' | curl -s -X POST http://127.0.0.1:7860/predict -H "X-Inference-Key: $KEY" -H "Content-Type: application/json" -d @-
 ```
 
 The response has the `score`, the `decision` and the exact `model_version`.
@@ -55,8 +55,20 @@ The response has the `score`, the `decision` and the exact `model_version`.
 
 - [deploy/README.md](deploy/README.md): model bundles, the API contract,
   Hugging Face and other hosts.
+- [checks/README.md](checks/README.md): unified offline regression and live validation.
 - [CONTRACT.md](CONTRACT.md) and [GOAL.md](GOAL.md): project scope and evaluation rules.
 - [docs/](docs): data and training pipelines for each task.
 - [apps/](apps): the backend and the web frontend.
 
 Scores are research screening outputs, not calibrated probabilities of fraud.
+
+## Running application
+
+Homepage with sampled live Ethereum mainnet transactions:
+
+![Chainrisk homepage with live Ethereum transactions](docs/screenshots/live-transactions.png)
+
+Completed ERC-20 analysis showing the transaction graph, model screening results
+and token activity:
+
+![Completed LQTY token analysis with graph and screening results](docs/screenshots/token-analysis.png)

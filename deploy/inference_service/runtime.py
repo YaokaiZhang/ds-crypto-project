@@ -24,8 +24,6 @@ TASKS = ('phishing', 'ponzi', 'honeypot', 'rug_pull', 'continued_activity')
 SCAM_TASKS = TASKS[:-1]
 FORECAST = 'continued_activity'
 FORECAST_PROTOCOL = 'forecast-wallet-observations-1'
-# Backend packets built before a real Forecast bundle existed carry this marker.
-PENDING_FORECAST_VERSION = 'forecast-wallet-graph-mock-v1'
 
 
 class BusyError(Exception):
@@ -145,8 +143,10 @@ class InferenceRuntime:
         # Identity metadata is optional, but anything supplied must match.
         if payload.get('protocol_version', FORECAST_PROTOCOL) != FORECAST_PROTOCOL:
             raise ValueError('Input identity mismatch: protocol_version')
-        if payload.get('model_version', manifest['model_version']) not in (manifest['model_version'], PENDING_FORECAST_VERSION):
+        if payload.get('model_version', manifest['model_version']) != manifest['model_version']:
             raise ValueError('Input identity mismatch: model_version')
+        if payload.get('scaler_sha256', manifest['scaler_sha256']) != manifest['scaler_sha256']:
+            raise ValueError('Input identity mismatch: scaler_sha256')
         for key, field in (('target', 'token_address'), ('cutoff', 'cutoff')):
             if key in payload and payload[key] != graph.get(field):
                 raise ValueError(f'Input identity mismatch: {key}')
