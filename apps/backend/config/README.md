@@ -16,6 +16,8 @@ Manifests retain their original training metadata, including binary thresholds,
 for checksum compatibility. Backend code does not use those thresholds to assign
 labels. Runtime threshold/display policy files belong to the model server.
 
-Forecast retains its separate first-week wallet-graph input builder. Its final
-model manifest/scaler is still pending; current mock inputs explicitly say so.
+`forecast_input.json` pins the Forecast v0.2.0 model/scaler identities and
+accepted feature names. The first-week wallet builder produces canonical
+unscaled graphs; the model service selects columns by name and applies its
+training-fitted scaler. There are no Forecast labeling thresholds in this config.
 See [the model-service contract](../../docs/MODEL_SERVICE_CONTRACT.md).

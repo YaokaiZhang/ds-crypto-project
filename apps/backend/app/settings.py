@@ -5,6 +5,7 @@ import math
 import os
 from pathlib import Path
 import tempfile
+from urllib.parse import urlsplit
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parents[1]
@@ -47,21 +48,23 @@ class Settings:
     analysis_artifact_path: str = str(PROJECT_ROOT / '.runtime/eth-artifacts')
     analysis_concurrency: int = 2
     analysis_lease_seconds: int = 60
-    mock_predictor_url: str = 'http://127.0.0.1:18081/predict'
-    demo_database_path: str = os.path.join(tempfile.gettempdir(), 'chainrisk-demo.sqlite3')
-    demo_delay_scale: float = 1.0
+    inference_url: str | None = None
+    inference_api_key: str | None = field(default=None, repr=False)
+    inference_timeout: float = 180.0
     feed_enabled: bool = False
     feed_database_path: str = os.path.join(tempfile.gettempdir(), 'chainrisk-feed.sqlite3')
 
     def __post_init__(self):
-        if self.analysis_mode not in ('template', 'demo', 'eth_live_mock'):
-            raise ValueError('ANALYSIS_MODE must be template, demo or eth_live_mock')
+        if self.analysis_mode not in ('template', 'eth_live'):
+            raise ValueError('ANALYSIS_MODE must be template or eth_live')
+        if self.inference_url:
+            url = urlsplit(self.inference_url)
+            if url.scheme != 'https' or not url.hostname or url.username or url.password or url.query or url.fragment:
+                raise ValueError('INFERENCE_URL must be an HTTPS service base URL without credentials or query parameters')
+        if not math.isfinite(self.inference_timeout) or not 1 <= self.inference_timeout <= 300:
+            raise ValueError('INFERENCE_TIMEOUT must be between 1 and 300 seconds')
         if not 1 <= self.analysis_concurrency <= 4 or self.analysis_lease_seconds < 15:
             raise ValueError('Invalid analysis concurrency or lease duration')
-        if self.mock_predictor_url != 'http://127.0.0.1:18081/predict':
-            raise ValueError('The temporary mock target must be the reserved local predictor address')
-        if not 0 <= self.demo_delay_scale <= 10:
-            raise ValueError('DEMO_DELAY_SCALE must be between 0 and 10')
         if isinstance(self.etherscan_rate_limit, bool) or not math.isfinite(self.etherscan_rate_limit) or not 0 < self.etherscan_rate_limit <= 3:
             raise ValueError('ETHERSCAN_RATE_LIMIT must be greater than 0 and at most 3')
         if isinstance(self.etherscan_daily_limit, bool) or not isinstance(self.etherscan_daily_limit, int) or not 1 <= self.etherscan_daily_limit <= 99000:
@@ -77,11 +80,12 @@ class Settings:
                    etherscan_rate_limit=float(os.getenv('ETHERSCAN_RATE_LIMIT', '3')),
                    etherscan_daily_limit=int(os.getenv('ETHERSCAN_DAILY_LIMIT', '99000')),
                    etherscan_quota_path=os.getenv('ETHERSCAN_QUOTA_FILE') or str(PROJECT_ROOT / '.runtime/etherscan/quota.sqlite3'),
-                   analysis_mode=os.getenv('ANALYSIS_MODE', 'template'),
+                   analysis_mode=server_credential('ANALYSIS_MODE') or 'template',
+                   inference_url=server_credential('INFERENCE_URL'),
+                   inference_api_key=server_credential('INFERENCE_API_KEY'),
+                   inference_timeout=float(os.getenv('INFERENCE_TIMEOUT', '180')),
                    analysis_database_path=os.getenv('ANALYSIS_DATABASE_PATH') or str(PROJECT_ROOT / '.runtime/eth-analysis.sqlite3'),
                    analysis_artifact_path=os.getenv('ANALYSIS_ARTIFACT_PATH') or str(PROJECT_ROOT / '.runtime/eth-artifacts'),
                    analysis_concurrency=int(os.getenv('ANALYSIS_CONCURRENCY', '2')),
-                   demo_database_path=os.getenv('DEMO_DATABASE_PATH') or os.path.join(tempfile.gettempdir(), 'chainrisk-demo.sqlite3'),
-                   demo_delay_scale=float(os.getenv('DEMO_DELAY_SCALE', '1')),
                    feed_enabled=os.getenv('FEED_ENABLED', 'false').lower() == 'true',
                    feed_database_path=os.getenv('FEED_DATABASE_PATH') or os.path.join(tempfile.gettempdir(), 'chainrisk-feed.sqlite3'))

@@ -1,0 +1,34 @@
+{
+  "model_version": "continued_activity-b6140c2fdd0cc2e6",
+  "scaler_sha256": "592b0d59cc8b9327f5251fb3f0443156efd5a6773aee786a3db3f6285addc254",
+  "accepted_graph_versions": [
+    "wallet-graph-input-0.1",
+    "wallet-graph-input-pruned-20261010-0.1"
+  ],
+  "node_feature_names": [
+    "node_type_center",
+    "node_type_pool",
+    "node_type_wallet",
+    "log1p_event_count",
+    "log1p_swap_count",
+    "log1p_mint_count",
+    "log1p_burn_count",
+    "active_day_fraction",
+    "log1p_degree",
+    "log1p_connected_pool_count",
+    "recipient_role_fraction",
+    "protocol_v2",
+    "protocol_v3",
+    "pool_age_years"
+  ],
+  "edge_feature_names": [
+    "relation_contains_token",
+    "relation_swap_activity",
+    "log1p_swap_count",
+    "active_day_fraction",
+    "first_swap_offset_fraction",
+    "last_swap_offset_fraction",
+    "sender_role_fraction",
+    "recipient_role_fraction"
+  ]
+}

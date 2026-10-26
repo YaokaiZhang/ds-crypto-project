@@ -1,4 +1,4 @@
-"""Prepare an allowlisted, self-contained Space folder; never upload anything."""
+"""Prepare an allowlisted inference-service folder; never upload anything."""
 from __future__ import annotations
 
 import argparse
@@ -38,6 +38,7 @@ def prepare(output, config, tasks=None):
     for filename in ('app.py', 'runtime.py', 'policies.py', 'requirements.txt', 'README.md'):
         shutil.copy2(HERE / filename, output / filename)
     shutil.copy2(HERE.parent / 'README.md', output / 'DEPLOYMENT.md')
+    shutil.copy2(HERE.parent / 'MODAL.md', output / 'MODAL.md')
     (output / 'packages').mkdir()
     for filename in PACKAGE_FILES:
         shutil.copy2(ROOT / 'packages' / filename, output / 'packages' / filename)

@@ -1,0 +1,799 @@
+{
+ "description": "Real Task A test-holdout token (first-week wallet graph, live 18/11-feature schema). Expected values are the recorded research ensemble score and true outcome.",
+ "expected": {
+  "task_id": "continued_activity",
+  "model_version": "continued_activity-b6140c2fdd0cc2e6",
+  "score": 0.7241997520128886,
+  "decision": "continued_activity",
+  "true_outcome": "continued_activity"
+ },
+ "packet": {
+  "protocol_version": "forecast-wallet-observations-1",
+  "task_id": "continued_activity",
+  "sample_id": "reviewer-0x886f224128b84e59edbb0e5c2a3195b8cf0e9db2",
+  "target": "0x886f224128b84e59edbb0e5c2a3195b8cf0e9db2",
+  "cutoff": "2025-03-17T21:19:47Z",
+  "model_version": "continued_activity-b6140c2fdd0cc2e6",
+  "scaler_sha256": "592b0d59cc8b9327f5251fb3f0443156efd5a6773aee786a3db3f6285addc254",
+  "graph_sample": {
+   "cutoff": "2025-03-17T21:19:47Z",
+   "edge_feature_names": [
+    "relation_contains_token",
+    "relation_swap_activity",
+    "log1p_swap_count",
+    "log1p_positive_volume_usd",
+    "active_day_fraction",
+    "first_swap_offset_fraction",
+    "last_swap_offset_fraction",
+    "sender_role_fraction",
+    "recipient_role_fraction",
+    "transaction_from_role_fraction",
+    "missing_amount_fraction"
+   ],
+   "edge_features": [
+    [
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.6931471805599453,
+     5.57180023365239,
+     0.14285714285714285,
+     0.7390674603174603,
+     0.7390674603174603,
+     1.0,
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.6931471805599453,
+     5.57180023365239,
+     0.14285714285714285,
+     0.7390674603174603,
+     0.7390674603174603,
+     1.0,
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.6931471805599453,
+     1.1597825513890587,
+     0.14285714285714285,
+     0.2818253968253968,
+     0.2818253968253968,
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.6931471805599453,
+     1.1597825513890587,
+     0.14285714285714285,
+     0.2818253968253968,
+     0.2818253968253968,
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     1.0986122886681096,
+     3.9505432591437173,
+     0.2857142857142857,
+     0.040257936507936506,
+     0.74125,
+     0.5,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     1.0986122886681096,
+     3.9505432591437173,
+     0.2857142857142857,
+     0.040257936507936506,
+     0.74125,
+     0.5,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.6931471805599453,
+     5.916818356777311,
+     0.14285714285714285,
+     0.00017857142857142857,
+     0.00017857142857142857,
+     1.0,
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.6931471805599453,
+     5.916818356777311,
+     0.14285714285714285,
+     0.00017857142857142857,
+     0.00017857142857142857,
+     1.0,
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.6931471805599453,
+     4.65340043169036,
+     0.14285714285714285,
+     0.2822420634920635,
+     0.2822420634920635,
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.6931471805599453,
+     4.65340043169036,
+     0.14285714285714285,
+     0.2822420634920635,
+     0.2822420634920635,
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     1.0986122886681096,
+     6.282032907159828,
+     0.2857142857142857,
+     0.006051587301587302,
+     0.3824404761904762,
+     0.5,
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     1.0986122886681096,
+     6.282032907159828,
+     0.2857142857142857,
+     0.006051587301587302,
+     0.3824404761904762,
+     0.5,
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.6931471805599453,
+     5.941701244037934,
+     0.14285714285714285,
+     3.968253968253968e-05,
+     3.968253968253968e-05,
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.6931471805599453,
+     5.941701244037934,
+     0.14285714285714285,
+     3.968253968253968e-05,
+     3.968253968253968e-05,
+     1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.6931471805599453,
+     0.3531305080088389,
+     0.14285714285714285,
+     0.11511904761904761,
+     0.11511904761904761,
+     1.0,
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.6931471805599453,
+     0.3531305080088389,
+     0.14285714285714285,
+     0.11511904761904761,
+     0.11511904761904761,
+     1.0,
+     1.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "edge_index": [
+    [
+     0,
+     1,
+     2,
+     1,
+     3,
+     1,
+     4,
+     1,
+     5,
+     1,
+     6,
+     1,
+     7,
+     1,
+     8,
+     1,
+     9,
+     1
+    ],
+    [
+     1,
+     0,
+     1,
+     2,
+     1,
+     3,
+     1,
+     4,
+     1,
+     5,
+     1,
+     6,
+     1,
+     7,
+     1,
+     8,
+     1,
+     9
+    ]
+   ],
+   "edge_refs": [
+    {
+     "destination_index": 1,
+     "event_ids": [],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "contains_token",
+     "source_index": 0
+    },
+    {
+     "destination_index": 0,
+     "event_ids": [],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "contains_token",
+     "source_index": 1
+    },
+    {
+     "destination_index": 1,
+     "event_ids": [
+      "0x5d2d32ddafa6a1aa15dbe26e464b0d63aa948717ffd520d8ce3830db59d2fc3b-0"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 2,
+     "wallet_address": "0x0500001fde3800757d9fc800003d10b8004a11ac"
+    },
+    {
+     "destination_index": 2,
+     "event_ids": [
+      "0x5d2d32ddafa6a1aa15dbe26e464b0d63aa948717ffd520d8ce3830db59d2fc3b-0"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 1,
+     "wallet_address": "0x0500001fde3800757d9fc800003d10b8004a11ac"
+    },
+    {
+     "destination_index": 1,
+     "event_ids": [
+      "0x26c33c591d37eb74a7a2c3833dfdb51d8181c280fe21acbd614ba5581f8f271b-0"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 3,
+     "wallet_address": "0x1111111254eeb25477b68fb85ed929f73a960582"
+    },
+    {
+     "destination_index": 3,
+     "event_ids": [
+      "0x26c33c591d37eb74a7a2c3833dfdb51d8181c280fe21acbd614ba5581f8f271b-0"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 1,
+     "wallet_address": "0x1111111254eeb25477b68fb85ed929f73a960582"
+    },
+    {
+     "destination_index": 1,
+     "event_ids": [
+      "0x3930d5138453024b92c24b47ec1edb53ec0df633e0d8775d5b169e5b742ce85a-0",
+      "0xdef81b8bb0144290082b379cc941c8cae9e5246099cd9592767b6e5621193e9a-1"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 4,
+     "wallet_address": "0x1ef032a3c471a99cc31578c8007f256d95e89896"
+    },
+    {
+     "destination_index": 4,
+     "event_ids": [
+      "0x3930d5138453024b92c24b47ec1edb53ec0df633e0d8775d5b169e5b742ce85a-0",
+      "0xdef81b8bb0144290082b379cc941c8cae9e5246099cd9592767b6e5621193e9a-1"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 1,
+     "wallet_address": "0x1ef032a3c471a99cc31578c8007f256d95e89896"
+    },
+    {
+     "destination_index": 1,
+     "event_ids": [
+      "0x66bde4608de228c432ca473df8f318f8d5dcbaa00e0b4baca7e57ab111735b1d-0"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 5,
+     "wallet_address": "0x3328f7f4a1d1c57c35df56bbf0c9dcafca309c49"
+    },
+    {
+     "destination_index": 5,
+     "event_ids": [
+      "0x66bde4608de228c432ca473df8f318f8d5dcbaa00e0b4baca7e57ab111735b1d-0"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 1,
+     "wallet_address": "0x3328f7f4a1d1c57c35df56bbf0c9dcafca309c49"
+    },
+    {
+     "destination_index": 1,
+     "event_ids": [
+      "0xefbd3e47c1aac2e3cd1c1173a4ef64fa211300aae9a12e2f6f3a298defb4116b-1"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 6,
+     "wallet_address": "0x5141b82f5ffda4c6fe1e372978f1c5427640a190"
+    },
+    {
+     "destination_index": 6,
+     "event_ids": [
+      "0xefbd3e47c1aac2e3cd1c1173a4ef64fa211300aae9a12e2f6f3a298defb4116b-1"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 1,
+     "wallet_address": "0x5141b82f5ffda4c6fe1e372978f1c5427640a190"
+    },
+    {
+     "destination_index": 1,
+     "event_ids": [
+      "0x012efdfee98b47f216cb59be9a5c4e31a6ba061987a6a87e4947dd591f57e73e-1",
+      "0x783cf4cbbafbb0dacf18d3fbc9bee1d7670bff746b91b92cd7a8515e9672dbeb-0"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 7,
+     "wallet_address": "0x66a9893cc07d91d95644aedd05d03f95e1dba8af"
+    },
+    {
+     "destination_index": 7,
+     "event_ids": [
+      "0x012efdfee98b47f216cb59be9a5c4e31a6ba061987a6a87e4947dd591f57e73e-1",
+      "0x783cf4cbbafbb0dacf18d3fbc9bee1d7670bff746b91b92cd7a8515e9672dbeb-0"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 1,
+     "wallet_address": "0x66a9893cc07d91d95644aedd05d03f95e1dba8af"
+    },
+    {
+     "destination_index": 1,
+     "event_ids": [
+      "0xbde613e27befe296e07f6c796e25f42cc31ef408b6ba465bf48770bff82b4140-0"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 8,
+     "wallet_address": "0x80a64c6d7f12c47b7c66c5b4e20e72bc1fcd5d9e"
+    },
+    {
+     "destination_index": 8,
+     "event_ids": [
+      "0xbde613e27befe296e07f6c796e25f42cc31ef408b6ba465bf48770bff82b4140-0"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 1,
+     "wallet_address": "0x80a64c6d7f12c47b7c66c5b4e20e72bc1fcd5d9e"
+    },
+    {
+     "destination_index": 1,
+     "event_ids": [
+      "0x3c484346ee333f49579ea2f4897d40373f99f64c4b48a081c6a95bfdfb332d1e-0"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 9,
+     "wallet_address": "0xdef1c0ded9bec7f1a1670819833240f027b25eff"
+    },
+    {
+     "destination_index": 9,
+     "event_ids": [
+      "0x3c484346ee333f49579ea2f4897d40373f99f64c4b48a081c6a95bfdfb332d1e-0"
+     ],
+     "pool_address": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "protocol": "uniswap_v2",
+     "relation": "swap_activity",
+     "source_index": 1,
+     "wallet_address": "0xdef1c0ded9bec7f1a1670819833240f027b25eff"
+    }
+   ],
+   "graph_role": "development",
+   "graph_version": "wallet-graph-input-0.1",
+   "node_feature_names": [
+    "node_type_center",
+    "node_type_pool",
+    "node_type_wallet",
+    "log1p_event_count",
+    "log1p_swap_count",
+    "log1p_mint_count",
+    "log1p_burn_count",
+    "log1p_positive_volume_usd",
+    "active_day_fraction",
+    "log1p_degree",
+    "log1p_connected_pool_count",
+    "sender_role_fraction",
+    "recipient_role_fraction",
+    "transaction_from_role_fraction",
+    "missing_amount_fraction",
+    "protocol_v2",
+    "protocol_v3",
+    "pool_age_years"
+   ],
+   "node_features": [
+    [
+     1.0,
+     0.0,
+     0.0,
+     2.4849066497880004,
+     2.3978952727983707,
+     0.6931471805599453,
+     0.0,
+     7.4407982625892295,
+     0.7142857142857143,
+     0.6931471805599453,
+     0.6931471805599453,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0,
+     2.3978952727983707,
+     2.3978952727983707,
+     0.0,
+     0.0,
+     7.4407982625892295,
+     0.7142857142857143,
+     2.302585092994046,
+     2.1972245773362196,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.019164955509924708
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.6931471805599453,
+     0.0,
+     0.0,
+     5.57180023365239,
+     0.14285714285714285,
+     0.6931471805599453,
+     0.6931471805599453,
+     1.0,
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.6931471805599453,
+     0.0,
+     0.0,
+     1.1597825513890587,
+     0.14285714285714285,
+     0.6931471805599453,
+     0.6931471805599453,
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     1.0986122886681096,
+     0.0,
+     0.0,
+     3.9505432591437173,
+     0.2857142857142857,
+     0.6931471805599453,
+     0.6931471805599453,
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.6931471805599453,
+     0.0,
+     0.0,
+     5.916818356777311,
+     0.14285714285714285,
+     0.6931471805599453,
+     0.6931471805599453,
+     1.0,
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.6931471805599453,
+     0.0,
+     0.0,
+     4.65340043169036,
+     0.14285714285714285,
+     0.6931471805599453,
+     0.6931471805599453,
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     1.0986122886681096,
+     0.0,
+     0.0,
+     6.282032907159828,
+     0.2857142857142857,
+     0.6931471805599453,
+     0.6931471805599453,
+     1.0,
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.6931471805599453,
+     0.0,
+     0.0,
+     5.941701244037934,
+     0.14285714285714285,
+     0.6931471805599453,
+     0.6931471805599453,
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.6931471805599453,
+     0.0,
+     0.0,
+     0.3531305080088389,
+     0.14285714285714285,
+     0.6931471805599453,
+     0.6931471805599453,
+     1.0,
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "node_refs": [
+    {
+     "id": "0x886f224128b84e59edbb0e5c2a3195b8cf0e9db2",
+     "kind": "center",
+     "protocol": null
+    },
+    {
+     "id": "0x8f027f6e3830dee283b27a6b11cf73495adac6a7",
+     "kind": "pool",
+     "protocol": "uniswap_v2"
+    },
+    {
+     "id": "0x0500001fde3800757d9fc800003d10b8004a11ac",
+     "kind": "wallet",
+     "protocol": null
+    },
+    {
+     "id": "0x1111111254eeb25477b68fb85ed929f73a960582",
+     "kind": "wallet",
+     "protocol": null
+    },
+    {
+     "id": "0x1ef032a3c471a99cc31578c8007f256d95e89896",
+     "kind": "wallet",
+     "protocol": null
+    },
+    {
+     "id": "0x3328f7f4a1d1c57c35df56bbf0c9dcafca309c49",
+     "kind": "wallet",
+     "protocol": null
+    },
+    {
+     "id": "0x5141b82f5ffda4c6fe1e372978f1c5427640a190",
+     "kind": "wallet",
+     "protocol": null
+    },
+    {
+     "id": "0x66a9893cc07d91d95644aedd05d03f95e1dba8af",
+     "kind": "wallet",
+     "protocol": null
+    },
+    {
+     "id": "0x80a64c6d7f12c47b7c66c5b4e20e72bc1fcd5d9e",
+     "kind": "wallet",
+     "protocol": null
+    },
+    {
+     "id": "0xdef1c0ded9bec7f1a1670819833240f027b25eff",
+     "kind": "wallet",
+     "protocol": null
+    }
+   ],
+   "partition": "inference",
+   "source_dataset": "wallet_graph_events_20261003_2000",
+   "stats": {
+    "edge_count": 18,
+    "node_count": 10,
+    "pool_count": 1,
+    "wallet_count": 8,
+    "wallet_pool_edge_count": 8,
+    "window_swap_count": 10
+   },
+   "t0": "2025-03-10T21:19:47Z",
+   "token_address": "0x886f224128b84e59edbb0e5c2a3195b8cf0e9db2"
+  }
+ }
+}

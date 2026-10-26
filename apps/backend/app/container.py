@@ -15,7 +15,6 @@ class Container:
     feed: FeedService
     collector: FeedCollector
     registry: ModelRegistry
-    demo: object | None = None
     feed_store: object | None = None
     real: object | None = None
 
@@ -36,11 +35,7 @@ def build_container(settings: Settings) -> Container:
         feed=FeedService(feed), collector=FeedCollector(EthereumRpcProvider(settings), feed),
         registry=registry,
     )
-    if settings.analysis_mode == 'demo':
-        from .demo.service import DemoAnalysisService
-        services.demo = DemoAnalysisService(settings)
-        services.analysis = services.demo
-    if settings.analysis_mode == 'eth_live_mock':
+    if settings.analysis_mode == 'eth_live':
         from .adapters.analysis_store import AnalysisStore
         from .adapters.etherscan_budget import EtherscanBudget
         from .application.live_analysis import LiveAnalysisService

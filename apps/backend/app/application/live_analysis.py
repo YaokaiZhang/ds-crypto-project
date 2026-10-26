@@ -1,25 +1,64 @@
-"""HTTP facade for durable real-chain ETH analysis with simulated scores."""
+"""HTTP facade for durable real-chain analysis and explicit scoring modes."""
 import asyncio
 import base64
 import json
+import time
+from pathlib import Path
+
+import httpx
 
 from fastapi.responses import StreamingResponse
 
 from ..api.schemas import AnalysisRequest
 from ..errors import ServiceError
+from ..settings import BACKEND_ROOT
+from ..adapters.remote_predictor import forecast_input_contract
 
 
 class LiveAnalysisService:
     def __init__(self, store, budget, settings):
         self.store, self.budget, self.settings = store, budget, settings
+        self.models = set()
+        self.models_checked_at = float('-inf')
+        self.model_lock = asyncio.Lock()
+
+    async def refresh_models(self):
+        async with self.model_lock:
+            if time.monotonic() - self.models_checked_at < 60:
+                return
+            available = set()
+            if self.settings.inference_url and self.settings.inference_api_key:
+                try:
+                    expected = {'continued_activity': forecast_input_contract()}
+                    for setting, filename in (('model_registry_path', 'eth_models.json'),
+                                              ('token_model_registry_path', 'token_models.json')):
+                        index = Path(getattr(self.settings, setting) or BACKEND_ROOT / 'config' / filename)
+                        for task, bundle in json.loads(index.read_text())['tasks'].items():
+                            expected[task] = json.loads((index.parent / bundle / 'manifest.json').read_text())
+                    async with httpx.AsyncClient(timeout=self.settings.inference_timeout, trust_env=False) as client:
+                        response = await client.get(self.settings.inference_url.rstrip('/') + '/models',
+                            headers={'X-Inference-Key': self.settings.inference_api_key})
+                    response.raise_for_status()
+                    data = response.json()
+                    if not isinstance(data, dict) or not isinstance(data.get('tasks'), list):
+                        raise ValueError('Invalid model catalog')
+                    if data['status'] == 'ready':
+                        available = {item['task_id'] for item in data['tasks']
+                            if isinstance(item, dict) and item.get('model_available') is True and item['task_id'] in expected and
+                            all(item.get(key) == expected[item['task_id']][key]
+                                for key in ('model_version', 'scaler_sha256'))}
+                except (httpx.HTTPError, ValueError, KeyError, TypeError, OSError):
+                    pass
+            self.models, self.models_checked_at = available, time.monotonic()
 
     def capabilities(self):
         configured = bool(self.settings.ethereum_rpc_url and self.settings.etherscan_api_key)
-        return {'mode': 'eth_live_mock', 'analysis_enabled': configured and self.store.worker_alive(),
-                'supported_families': ['eth_scam', 'token_scam', 'forecast'], 'score_mode': 'simulated', 'events_enabled': True,
-                'result_origin': 'chain_data_simulated_scores',
-                'tasks': [{'task_id': task, 'entity': entity, 'model_available': False,
-                           'assessment_available': True, 'result_origin': 'simulated'}
+        return {'mode': self.settings.analysis_mode,
+                'analysis_enabled': configured and self.store.worker_alive() and (len(self.models) == 5),
+                'supported_families': ['eth_scam', 'token_scam', 'forecast'], 'score_mode': 'model', 'events_enabled': True,
+                'result_origin': 'chain_data_model_scores',
+                'tasks': [{'task_id': task, 'entity': entity, 'model_available': task in self.models,
+                           'assessment_available': task in self.models, 'result_origin': 'model'}
                           for task, entity in [('phishing', 'address'), ('ponzi', 'contract'),
                                                ('honeypot', 'token'), ('rug_pull', 'token'), ('continued_activity', 'token')]]}
 
@@ -33,6 +72,8 @@ class LiveAnalysisService:
             return previous
         if not self.settings.ethereum_rpc_url or not self.settings.etherscan_api_key:
             raise ServiceError('provider_authentication')
+        if not self.settings.inference_url or not self.settings.inference_api_key:
+            raise ServiceError('model_unavailable')
         await asyncio.to_thread(self.budget.check_admission)
         return self.store.create(payload, idempotency_key)
 

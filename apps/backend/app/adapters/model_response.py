@@ -1,36 +1,15 @@
 """Validate a predictor's score and labels without applying any thresholds."""
 from ..api.schemas import TaskResult
 
-FIXED_MOCK_VERSION = 'mock-fixed-0999-v1'
-
-
-def fixed_mock_response(payload):
-    """A service-shaped fixture, never a fallback for real inference errors."""
-    response = {key: payload[key] for key in ('task_id', 'sample_id', 'target', 'cutoff')}
-    response.update(status='ok', score=0.999, model_version='simulated:' + payload['model_version'],
-                    calibration='uncalibrated', result_origin='simulated',
-                    explanation='Fixed mock response; no trained model was called.')
-    if payload['task_id'] == 'continued_activity':
-        response.update(label='Continued activity', decision='continued_activity', forecast={
-            'observation_days': 7, 'horizon_days': 90, 'swap_volume_threshold_usd': '1000',
-            'score_target': 'continued_activity', 'outcome': 'continued_activity',
-            'decision_policy_version': FIXED_MOCK_VERSION})
-    else:
-        response.update(label='High Risk', risk_band='high', risk_band_policy_version=FIXED_MOCK_VERSION,
-                        decision='screen_positive')
-    return response
-
-
-def read_model_response(payload, response, *, origin='model'):
-    """Use the same boundary for a future real adapter and current fixed mock."""
-    if not isinstance(response, dict) or response.get('result_origin') != origin:
+def read_model_response(payload, response):
+    """Validate a real model response without reclassifying its numeric score."""
+    if not isinstance(response, dict) or response.get('result_origin') != 'model':
         raise ValueError('Unexpected model response provenance')
     for key in ('task_id', 'sample_id', 'target', 'cutoff'):
         if response.get(key) != payload[key]:
             raise ValueError(f'Model response identity mismatch: {key}')
     expected = payload.get('model_version')
     if expected and response.get('score') is not None:
-        expected = 'simulated:' + expected if origin == 'simulated' else expected
         if response.get('model_version') != expected:
             raise ValueError('Model response uses different weights')
     result = TaskResult.model_validate({key: response[key] for key in TaskResult.model_fields if key in response})

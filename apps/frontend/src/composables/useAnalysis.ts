@@ -1,5 +1,6 @@
 import { onUnmounted, shallowRef, ref } from 'vue';
 import { analysisApi } from '@/api/analysis';
+import { createRequestId } from '@/api/requestId';
 import type { AnalysisRequest, AnalysisResult } from '@/api/contracts';
 
 const terminal = (value: AnalysisResult) => ['completed', 'partial', 'failed'].includes(value.status);
@@ -63,6 +64,6 @@ export function useAnalysis() {
   return {
     result, pending, error, streamConnected,
     reset: () => { generation++; stopTracking(); controller?.abort(); result.value = null; error.value = null; pending.value = false; reading = false; },
-    create: (request: AnalysisRequest) => load(signal => analysisApi.create(request, signal, crypto.randomUUID())),
+    create: (request: AnalysisRequest) => load(signal => analysisApi.create(request, signal, createRequestId())),
   };
 }

@@ -6,7 +6,7 @@
 #   deploy/reproduce.sh verify URL # only check an already running service (e.g. a Space)
 #
 # Downloads the pinned Release bundles, verifies every checksum, starts the
-# service on port 7860 with a random API key and runs deploy/verify_service.py.
+# service on port 7860 with a random API key and runs checks/serving/verify_service.py.
 # The service keeps running afterwards; the script prints how to stop it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -15,7 +15,7 @@ PORT=${PORT:-7860}
 IMAGE=${IMAGE:-chainrisk-model-api}
 if [ "$MODE" = verify ]; then
   # Uses the caller's INFERENCE_API_KEY / HF_TOKEN, if set, for a remote service.
-  exec python3 deploy/verify_service.py "${2:?usage: deploy/reproduce.sh verify URL}"
+  exec python3 checks/serving/verify_service.py "${2:?usage: deploy/reproduce.sh verify URL}"
 fi
 export INFERENCE_API_KEY=${INFERENCE_API_KEY:-$(python3 -c 'import secrets; print(secrets.token_hex(24))')}
 
@@ -46,7 +46,7 @@ case "$MODE" in
   *) echo "usage: deploy/reproduce.sh [container|local|verify URL]" >&2; exit 2 ;;
 esac
 
-python3 deploy/verify_service.py "http://127.0.0.1:$PORT"
+python3 checks/serving/verify_service.py "http://127.0.0.1:$PORT"
 echo
 echo "Model API: http://127.0.0.1:$PORT  (header X-Inference-Key: $INFERENCE_API_KEY)"
 echo "Stop it:   $STOP"

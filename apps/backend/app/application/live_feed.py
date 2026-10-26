@@ -1,4 +1,4 @@
-"""Real chain feed, independent of the analysis/demo adapters."""
+"""Real chain feed, independent of the analysis service."""
 import asyncio
 from collections import deque
 from datetime import datetime

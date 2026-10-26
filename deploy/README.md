@@ -1,12 +1,18 @@
-# Hugging Face model API deployment
+# Model API deployment
+
+For Modal, follow [MODAL.md](MODAL.md). It reuses the Release download and bundle
+preparation steps below, then starts the existing Gradio Server on a regular
+CPU/CUDA container. The remaining hosting instructions on this page describe
+Hugging Face Spaces.
 
 One Hugging Face Space runs one `gradio.Server`, with one fixed bundle per task.
 The existing backend still owns collection, model graphs, durable jobs and progress.
-**This change only implements deployment. Backend real-mode integration is deferred.**
+`ANALYSIS_MODE=eth_live` connects the backend to the deployed service; see
+[backend configuration](../apps/backend/README.md).
 
 ```text
 GitHub Release -> download / verify / extract -> prepare.py -> upload Space
-Future backend predictor -> HTTPS -> Space / Gradio Server -> model -> result
+Backend remote predictor -> HTTPS -> Gradio Server -> model -> score + label
 ```
 
 Phishing, Ponzi, Honeypot and Rug Pull reuse `packages.bundle.load_model_bundle`
@@ -32,11 +38,12 @@ It builds `deploy/Dockerfile` (Python 3.11, CPU PyTorch 2.14.1, Gradio 6.30.0),
 downloads the bundles pinned in [`release.json`](release.json) from the `Models`
 Release, verifies every ZIP and file checksum and every model version, prepares
 the same folder that is uploaded to the Space, starts it on port 7860 with a
-random API key and runs [`verify_service.py`](verify_service.py). The check
+random API key and runs [`verify_service.py`](../checks/serving/verify_service.py). The check
 requires all five pinned model versions to be served, `/predict` to reject a
-missing key, and two real held-out Task A tokens in [`fixtures/`](fixtures) to
-reproduce their recorded research ensemble scores (tolerance 1e-5) and true
-outcomes. It prints `PASS`, the URL, the key and the stop command.
+missing key, and all six [recorded packets](../checks/fixtures/model_api) to
+reproduce their expected scores (tolerance 1e-5) and server labels. Four Scam
+packets are unlabeled golden-output regressions; two upstream Forecast packets
+retain their recorded research scores and outcomes. It prints `PASS`, the URL, the key and the stop command.
 
 - Without a container: `deploy/reproduce.sh local` (needs `python3.11`; set
   `PYTHON=/path/to/python3.11` otherwise) does the same steps in a fresh venv
@@ -45,7 +52,8 @@ outcomes. It prints `PASS`, the URL, the key and the stop command.
   `INFERENCE_API_KEY=... deploy/reproduce.sh verify https://OWNER-SPACE.hf.space`
   (add `HF_TOKEN` for a Private Space).
 - CI: [`.github/workflows/model-api.yml`](../.github/workflows/model-api.yml) runs
-  `deploy/reproduce.sh` on every push that touches `deploy/` or `packages/`.
+  offline checks and `deploy/reproduce.sh` for relevant application, model and
+  test changes on pushes and pull requests.
 - `verify_service.py` and `fetch_release.py` use only the Python standard library.
 
 ### Other hosts (Verda, any VM or container platform)
@@ -87,72 +95,34 @@ Keep the files together. Training reports, datasets and prediction records are
 not needed for deployment.
 
 The Forecast bundle is exported from the Task A training runs (pruned temporal
-split without the USD volume feature, `edge_gcn`, seeds 20261001-3) by
-`scripts/export_forecast_bundle.py`,
+split, `edge_gcn`, seeds 20261001-3) by `scripts/export_forecast_bundle.py`,
 which reloads the written bundle and requires it to reproduce the recorded
 research ensemble scores on all 2,000 training-dataset graphs.
 
-For a publicly accessible Release:
+Download, verify both archive and internal checksums, safely extract and generate
+`models.json` with the included helper:
 
 ```bash
-mkdir -p deploy/.build/release-downloads
-RELEASE_BASE_URL=https://github.com/YaokaiZhang/ds-crypto-project/releases/download/Models
-for asset in SHA256SUMS chainrisk-phishing-v0.1.0.zip chainrisk-ponzi-v0.1.0.zip chainrisk-honeypot-v0.1.0.zip chainrisk-rug_pull-v0.1.0.zip chainrisk-continued_activity-v0.2.0.zip; do
-  curl --fail --location --retry 3 \
-    --output "deploy/.build/release-downloads/$asset" "$RELEASE_BASE_URL/$asset"
-done
+.venv/bin/python deploy/fetch_release.py \
+  --output deploy/.build/release-models --downloads deploy/.build/release-downloads
 ```
 
-If the repository requires authentication, use GitHub CLI with an account that
-has repository access instead of unauthenticated `curl`:
+Files stay under `deploy/.build/release-downloads/` and
+`deploy/.build/release-models/`. Existing ZIP downloads are revalidated and reused; corrupt files fail verification.
+Extraction requires a fresh output directory; use `--output deploy/.build/another-release`
+when rebuilding. The model versions come from the shared `deploy/release.json`. Forecast v0.2.0 is selected; the older Forecast asset in
+the same Release is retained upstream for rollback and is not downloaded.
 
-```bash
-gh auth login
-gh release download Models \
-  --repo YaokaiZhang/ds-crypto-project \
-  --dir deploy/.build/release-downloads \
-  --pattern 'chainrisk-*-v0.1.0.zip' --pattern 'chainrisk-continued_activity-v0.2.0.zip' \
-  --pattern SHA256SUMS
-```
-
-The Release also keeps the earlier USD Forecast bundle
-(`chainrisk-continued_activity-v0.1.0.zip`) for rollback; the `gh` pattern above
-downloads it too, and it is ignored below. Alternatively, download those six assets from the Release page into the same
-directory. A GitHub read credential is used only for downloading private assets;
-it is different from the Hugging Face token used to upload/call the Space.
-
-Verify downloads before extracting, then verify each extracted bundle:
-
-```bash
-(cd deploy/.build/release-downloads && shasum -a 256 -c --ignore-missing SHA256SUMS)
-mkdir -p deploy/.build/release-models
-for bundle in chainrisk-phishing-v0.1.0 chainrisk-ponzi-v0.1.0 chainrisk-honeypot-v0.1.0 chainrisk-rug_pull-v0.1.0 chainrisk-continued_activity-v0.2.0; do
-  unzip -q "deploy/.build/release-downloads/$bundle.zip" -d deploy/.build/release-models
-  (cd "deploy/.build/release-models/$bundle" && shasum -a 256 -c SHA256SUMS)
-done
-```
-
-Every checksum must report `OK`; stop if a check fails. `shasum` is available on
-macOS and many Linux systems; `sha256sum -c SHA256SUMS` is the Linux alternative.
-For another download attempt, use a fresh directory to avoid mixing releases.
+For private repository access, first use an authenticated GitHub CLI to download
+the same five ZIPs and `SHA256SUMS` into `deploy/.build/release-downloads/`, then
+run the helper to verify/extract the local files. GitHub credentials are not
+uploaded to the model service.
 
 ## 2. Prepare the Space from the downloaded bundles
 
-Create this small deployment mapping. Paths are relative to the JSON file:
+The download helper generates the relative bundle mapping. Prepare it with:
 
 ```bash
-cat > deploy/.build/release-models/models.json <<'JSON'
-{
-  "tasks": {
-    "phishing": "chainrisk-phishing-v0.1.0",
-    "ponzi": "chainrisk-ponzi-v0.1.0",
-    "honeypot": "chainrisk-honeypot-v0.1.0",
-    "rug_pull": "chainrisk-rug_pull-v0.1.0",
-    "continued_activity": "chainrisk-continued_activity-v0.2.0"
-  }
-}
-JSON
-
 .venv/bin/python deploy/inference_service/prepare.py \
   --config deploy/.build/release-models/models.json \
   --output deploy/.build/space
@@ -300,7 +270,7 @@ uses `httpx` from the serving environment and reads the same authentication
 variables without displaying them:
 
 ```bash
-.venv/bin/python deploy/inference_service/smoke.py \
+.venv/bin/python checks/serving/verify_service.py \
   https://OWNER-SPACE.hf.space --payload /absolute/path/to/model-input.json
 ```
 
@@ -323,10 +293,9 @@ Forecast requests send the backend's `forecast-wallet-observations-1` packet:
 graph from `scripts.build_wallet_graph.wallet_graph_for_target` as
 `graph_sample` (full 18/11-feature or pruned 15/9-feature schema; the model's
 columns are selected by name). Supplied `target`/`cutoff` must match the graph.
-`model_version` may be the loaded bundle's identity or the backend's pending
-marker `forecast-wallet-graph-mock-v1`. The response `model_version` is the real
-bundle identity, so a backend real-mode adapter must send that identity for its
-response validator to accept the result.
+`model_version` and `scaler_sha256`, when supplied, must match the loaded
+bundle. The backend sends those exact identities; the old temporary Forecast
+marker is no longer accepted.
 
 A scored response includes `task_id`, `sample_id`, `target`, `cutoff`, `status`,
 `score`, `label`, `model_version`, `result_origin: model`, `decision`, `calibration`,
@@ -374,15 +343,14 @@ are not REST HTTP status codes. The Gradio endpoint queues one call at a time.
 REST runs directly; both share a process-wide model lock, so overlapping work
 gets a busy result rather than executing multiple models simultaneously.
 
-**Backend real mode is intentionally deferred.** Current mock predictors ignore
-HTTP responses and use a fixed fixture: 0.999 / High Risk for eligible Scam
-inputs and 0.999 / Continued activity for eligible Forecast inputs. Their URL is
-restricted to loopback; this is not a fallback for a failed real request.
-Changing their URL alone is insufficient. A later remote adapter must consume and
-validate these responses through the existing `read_model_response` boundary,
-bind provenance, update capabilities, handle cold-start/busy responses and leave
-failures unscored. Backend code must not load deployment policies or reclassify
-the returned score/label. Keep mock and real modes explicit.
+The backend's `ANALYSIS_MODE=eth_live` uses authenticated REST requests with a
+180-second timeout for cold starts, bounded retries for busy responses and strict
+sample/model/scaler identity validation. It persists and displays the returned
+score and label without loading deployment policies. Failed requests remain
+unscored. Production mock/demo scoring and its configuration switches have been
+removed; there is no fabricated fallback. Configure the same `INFERENCE_API_KEY` on
+both machines; see [MODAL.md](MODAL.md) and the
+[model-service contract](../apps/docs/MODEL_SERVICE_CONTRACT.md).
 
 ## 7. Local uv environment and tests
 
@@ -397,20 +365,19 @@ MODEL_CONFIG=deploy/.build/release-models/models.json \
   .venv/bin/python deploy/inference_service/app.py
 ```
 
-In another terminal, run `smoke.py http://127.0.0.1:7860 --payload ...` using that
+In another terminal, run `checks/serving/verify_service.py http://127.0.0.1:7860 --payload ...` using that
 environment. Stop the server with Ctrl-C. Retain the existing environment and
 Gradio after testing; no cleanup/delete command is required.
 
 The full regression suite uses the original local training bundles selected by
 `inference_service/models.json`, or the downloaded Release bundles through
-`TEST_MODEL_CONFIG`. `TEST_FORECAST_GRAPHS` enables the Forecast checks with
-real Task A wallet graphs:
+`TEST_MODEL_CONFIG`. `TEST_FORECAST_GRAPHS` optionally selects research wallet graphs; otherwise the
+checks use saved real Forecast packets when present:
 
 ```bash
 TEST_MODEL_CONFIG=deploy/.build/release-models/models.json \
-TEST_FORECAST_GRAPHS=../ds/project/data/wallet_graph_input_20261003_2000_v4/graphs.jsonl \
 GRADIO_ANALYTICS_ENABLED=False .venv/bin/python \
-  -m unittest discover -s deploy/inference_service/checks -v
+  checks/run.py --suite serving -v
 ```
 
 ## Updates and operation
@@ -426,10 +393,12 @@ Idle/free hardware can sleep; its first request can include a cold start. Choose
 always-running paid hardware if needed. HF authentication/startup failures may
 occur before the application can return JSON. Local disk is ephemeral; weights
 are reloaded from the Space repository on restart. The inference service stores
-no jobs/results. Backend real-mode integration remains separate work, and deployment does not
-establish additional model-quality claims. Forecast is trained without USD volume
-features, so live backend packets (which carry no historical USD) match its
-training inputs; any `log1p_positive_volume_usd` column is ignored by name.
+no jobs/results. Deployment does not establish additional model-quality claims.
+Forecast v0.2.0 was retrained without historical USD node/edge features; it
+selects the 14 node and 8 edge columns by name from the full live graph schema.
+Missing historical USD is retained as missing in observations; no price
+substitution is used. The released validation threshold is 0.5369952122370402.
+
 
 References: [Gradio Server Mode](https://www.gradio.app/guides/server-mode),
 [Spaces configuration](https://huggingface.co/docs/hub/spaces-config-reference),

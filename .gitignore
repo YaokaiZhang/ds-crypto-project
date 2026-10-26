@@ -13,9 +13,7 @@
 /reports/
 reference/
 
-# Local test suites (keep files on disk)
-/checks/
-tests/
+# Repository regression tests under checks/ are version controlled.
 
 # Python environments, bytecode and package builds
 .venv/
@@ -90,3 +88,6 @@ Desktop.ini
 
 # Backend-local server credentials
 /apps/backend/local_secrets.py
+
+# Generated acceptance reports; regression source and fixtures stay tracked.
+/checks/.runtime/

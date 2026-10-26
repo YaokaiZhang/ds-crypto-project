@@ -3,7 +3,11 @@
 The OS advisory lock is held for the collector's lifetime, including RPC waits.
 Use a shared PostgreSQL implementation before deploying collectors across hosts.
 """
-import fcntl
+import os
+if os.name == 'nt':
+    import msvcrt
+else:
+    import fcntl
 import json
 from pathlib import Path
 import sqlite3
@@ -32,10 +36,19 @@ class FeedStore:
         self.owner = None
 
     def acquire(self):
-        self.owner = open(self.path + '.lock', 'a')
+        if self.owner is not None:
+            raise RuntimeError('This collector already owns the database')
+        self.owner = open(self.path + '.lock', 'a+b')
         try:
-            fcntl.flock(self.owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+            if os.name == 'nt':
+                if self.owner.seek(0, os.SEEK_END) == 0:
+                    self.owner.write(b'\0')
+                    self.owner.flush()
+                self.owner.seek(0)
+                msvcrt.locking(self.owner.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(self.owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
             self.owner.close()
             self.owner = None
             raise RuntimeError('Another feed collector owns this database') from None

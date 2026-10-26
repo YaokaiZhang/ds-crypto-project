@@ -1,4 +1,4 @@
-"""Durable single-host ETH worker with real collection and simulated scoring."""
+"""Durable single-host analysis worker with real collection and explicit scoring modes."""
 import argparse
 import asyncio
 import logging

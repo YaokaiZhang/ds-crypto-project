@@ -1,4 +1,4 @@
-"""Live ERC-20 observations and frozen token model inputs; simulated scoring."""
+"""Real token collection with remote model scoring."""
 import asyncio
 import hashlib
 
@@ -6,7 +6,8 @@ from packages.graph import build_graph_sample, graph_is_usable
 from packages.token import token_scope, TOKEN_RECENT_SCOPE_VERSION
 from packages.token_recent import sampling_recipe
 
-from ..adapters.mock_predictor import TokenInputRegistry
+from ..adapters.model_inputs import TokenInputRegistry
+from ..adapters.remote_predictor import outcome_cache_kind
 from ..api.schemas import AnalysisRequest, AnalysisResult
 from ..errors import ServiceError
 from .eth_pipeline import EthPipeline
@@ -89,14 +90,15 @@ class TokenPipeline(EthPipeline):
         for task, sample in samples.items():
             views[task]['context'].update(model_sample_id=sample['sample_id'], model_nodes=len(sample['node_refs']), model_edges=len(sample['edge_index'][0]))
         self.store.save(lease, {'graphs': views})
-        collector.stage('predicting', 'Sending real token model inputs to the temporary predictor target')
+        collector.stage('predicting', 'Requesting token model scores and labels')
         for task, sample in samples.items():
+            cache_kind = outcome_cache_kind(task, self.registry)
             if not graph_is_usable(sample):
                 outcomes[task] = {'task_id': task, 'status': sample['quality']['status'], 'score': None,
                     'sample_id': sample['sample_id'], 'reason_code': sample['quality']['status'],
                     'reason': 'No sufficient compatible token/pool activity was found. No score was generated.'}
                 continue
-            cached = self.store.artifact(lease['id'], 'mock_outcome_fixed_0999_v1', task)
+            cached = self.store.artifact(lease['id'], cache_kind, task)
             if cached:
                 if cached['sample_id'] != sample['sample_id']:
                     raise ServiceError('data_incomplete')
@@ -106,7 +108,7 @@ class TokenPipeline(EthPipeline):
                     outcome, delivery = await self.predictor.predict(sample, collector.directory)
                     outcomes[task] = outcome
                     self.store.save(lease, {'tasks': list(outcomes.values())},
-                        artifacts={('mock_outcome_fixed_0999_v1', task): outcome, ('model_delivery', task): delivery})
+                        artifacts={(cache_kind, task): outcome, ('model_delivery', task): delivery})
                 except (ValueError, KeyError):
                     outcomes[task] = {'task_id': task, 'status': 'model_error', 'score': None, 'reason_code': 'model_input_mismatch',
                         'reason': 'Model input preparation failed. Real token data remains available.'}
@@ -116,7 +118,7 @@ class TokenPipeline(EthPipeline):
         complete = all(t['status'] == 'ok' for t in outcomes.values())
         result = self.store.get(lease['id'])
         result.update(status='completed' if complete else 'partial', stage='completed', tasks=list(outcomes.values()),
-            message='Real token data collected. Scores and labels use the fixed mock response (0.999).' if complete else 'Real token data is available; one or more assessments have no score.',
+            message='Real token data and trained model assessments are ready.' if complete else 'Real token data is available; one or more assessments have no score.',
             progress={'state': 'completed' if complete else 'partial', 'unit': 'tasks', 'completed': len(outcomes),
                       'total': len(outcomes), 'total_final': True})
         AnalysisResult.model_validate(result)

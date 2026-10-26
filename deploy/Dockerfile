@@ -20,5 +20,5 @@ RUN useradd --create-home --uid 1000 app
 USER app
 EXPOSE 7860
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7860/health/ready', timeout=4)"
+  CMD python -c "import os, urllib.request; request=urllib.request.Request('http://127.0.0.1:7860/health/ready', headers={'X-Inference-Key':os.environ.get('INFERENCE_API_KEY','')}); urllib.request.urlopen(request, timeout=4)"
 CMD ["python", "app.py"]

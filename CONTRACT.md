@@ -31,6 +31,54 @@ reports and keep online assessments distinct from offline benchmarks.
 
 ### System-wide rules
 
+Windows web deployment revision requested on 2026-10-26: host the frontend and
+backend on a Windows Server behind Caddy, initially over the explicitly requested
+IP/HTTP endpoint. Keep the model service on Modal. The server receives built
+frontend assets and an allowlisted backend bundle with only required shared graph
+helpers, not the repository, tests, deploy sources or weights. Use Python's
+standard `.venv` and lightweight web dependencies. Remove backend pre-scaling and
+its redundant tensors: it sends the canonical graph and identities, while Modal
+alone applies the frozen scaler and runs models. Preserve the input graph,
+score/label protocol and quotas. Feed ownership now uses the platform's native
+file lock on Windows as well as Unix. The user subsequently requested removal of
+the one-off Windows packaging, service-install scripts and their configuration
+from `deploy/`; these are not retained as a repository deployment option. This
+does not remove the existing hosted services or portable runtime fixes.
+
+Regression organization revision requested on 2026-10-26: consolidate repository
+checks, frontend tests, test fixtures and explicit acceptance tools under the
+version-controlled root `checks/`. Remove the old blanket ignore for that folder,
+merge service smoke checks into one verifier, and keep runtime/deployment packages
+free of regression source and fixtures. Restore still-valid deleted API/Forecast
+coverage against the real worker; do not reintroduce removed mock/demo adapters.
+Retire their large synthetic data dumps and the frontend graph-preview entry.
+Synthetic CLI inputs are generated temporarily; real Scam golden-output packets
+and upstream Forecast samples have separate documented provenance. This changes
+test organization and verification workflow, not model weights or serving inputs.
+See [repository checks](checks/README.md).
+
+Remote serving revision requested on 2026-10-26: deploy the checksum-verified
+Models Release bundles to Modal and enable authenticated real backend inference
+with `ANALYSIS_MODE=eth_live`. The service runs on CPU by default (one container,
+scale-to-zero) and owns thresholds/labels. The backend uses its own input config,
+validates sample/model/scaler identity, persists returned scores/labels and never
+falls back to fixtures. Modal management tokens and the separate application
+Secret have distinct ownership. Backend hosts need no `deploy/`, weights or Modal
+management credentials. After successful real inference verification, the user
+requested removal of all mock scoring: fixed predictors, loopback transport,
+`eth_live_mock`, synthetic demo adapters/fixtures and their configuration are
+removed. Historical results are not rewritten; unfinished simulated jobs cannot
+be resumed as real assessments. This is a serving contract change, not a training change.
+See [Modal deployment](deploy/MODAL.md) and
+[the model-service contract](apps/docs/MODEL_SERVICE_CONTRACT.md).
+
+The same serving revision adopts the already-published Forecast v0.2.0 bundle
+`continued_activity-b6140c2fdd0cc2e6`, which excludes historical USD inputs and
+selects 14 node / 8 edge columns by name from live graphs. Its released validation
+threshold is 0.5369952122370402, bound to the server policy. The earlier Forecast
+bundle and serving notes below are historical. No model is retrained by this
+integration; Task A outcome semantics and backend eligibility remain unchanged.
+
 Forecast model serving revision requested on 2026-10-25: the Gradio inference
 server loads the trained Task A Forecast bundle
 (`continued_activity-b6140c2fdd0cc2e6`, Models Release asset

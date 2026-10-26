@@ -15,21 +15,25 @@ def atomic_bytes(path: str | Path, value: bytes, *, immutable=False) -> bool:
     """Publish complete bytes; immutable caches use first-writer-wins semantics."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".publish-", delete=False) as handle:
-        temporary = Path(handle.name)
-        try:
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".publish-", delete=False) as handle:
+            temporary = Path(handle.name)
             handle.write(value)
             handle.flush()
             os.fsync(handle.fileno())
-            if immutable:
-                try:
-                    os.link(temporary, path)
-                except FileExistsError:
-                    return False
-            else:
-                os.replace(temporary, path)
-            return True
-        finally:
+        # Windows requires the temporary handle to close before publication or
+        # cleanup. Keep the immutable first-writer-wins link semantics intact.
+        if immutable:
+            try:
+                os.link(temporary, path)
+            except FileExistsError:
+                return False
+        else:
+            os.replace(temporary, path)
+        return True
+    finally:
+        if temporary is not None:
             temporary.unlink(missing_ok=True)
 
 
@@ -55,16 +59,18 @@ def compress_file(source: str | Path, destination: str | Path) -> None:
     import shutil
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(dir=destination.parent, prefix=".compress-", delete=False) as handle:
-        temporary = Path(handle.name)
-        try:
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=destination.parent, prefix=".compress-", delete=False) as handle:
+            temporary = Path(handle.name)
             with Path(source).open("rb") as original, gzip.GzipFile(
                     filename="", mode="wb", fileobj=handle, mtime=0, compresslevel=6) as compressed:
                 shutil.copyfileobj(original, compressed, length=1024 * 1024)
             handle.flush()
             os.fsync(handle.fileno())
-            os.replace(temporary, destination)
-        finally:
+        os.replace(temporary, destination)
+    finally:
+        if temporary is not None:
             temporary.unlink(missing_ok=True)
 
 

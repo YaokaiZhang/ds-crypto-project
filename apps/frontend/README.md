@@ -24,7 +24,7 @@ provider credentials never belong in VITE variables.
 
 ## Extension points
 
-- `src/pages/`: Home, ETH Scam, Token Scam and Forecast placeholder. No saved-analysis page.
+- `src/pages/`: Home, ETH Scam, Token Scam and Forecast. No saved-analysis page.
 - `src/components/analysis/`: workbench panels, including the interactive
   Transaction Graph renderer; no example scores/data in application routes.
 - `src/components/ui/`: replaceable input/button/panel/table/icon primitives.
@@ -36,30 +36,26 @@ provider credentials never belong in VITE variables.
 - `src/design/`: semantic tokens, default theme, icon provider and chart theme.
 - `src/stores/`: UI preferences; results are scoped to analysis IDs.
 
-Analyze controls follow `/capabilities`. An explicitly enabled backend demo adapter
-supplies two complete analysis scopes with staged delays and no fixtures in frontend
-code. See [analysis integration](../docs/ANALYSIS_ADAPTER_INTEGRATION.md) for startup
-and removal. Template mode keeps analysis controls disabled.
+Analyze controls follow the real backend's `/capabilities`; all five model tasks
+are served by Modal through the backend. Production routes have no demo/mock
+adapter or local-data fallback. Default unconfigured template mode keeps analysis
+controls disabled. See [backend setup](../backend/README.md).
 The graph renderer implements the existing GraphRenderer interface. It validates
 explicit display records, preserves task/sample identity, and supports hover,
 selection, fit/zoom/pan, keyboard inspection and reduced motion. Real provider/model
-integration remains unimplemented; the removable adapter exercises the same DTOs.
+integration uses backend API responses and returned score/label metadata.
 `AppIcon` is the sole icon-library adapter;
 replace `design/icons.ts` or theme files to change appearance independently.
 API DTOs are starter contracts, not yet generated: wire OpenAPI generation before
 expanding production endpoints, and keep changes consistent with Python schemas.
 
-## Graph component preview and checks
+## Regression checks
 
-With the development server running, open `/graph-preview.html`. This separate
-development entry contains clearly labeled synthetic fixtures for ETH/ERC-20 and
-empty/loading/invalid states. It is not linked from application routes and is
-not included in the normal production build. It never supplies fallback analysis
-results. See [the graph design and display-record boundary](../docs/TRANSACTION_GRAPH_DESIGN.md).
-
-Run graph contract/layout checks with `node --test checks/graph-display.test.mjs`.
-The checks use the already installed TypeScript dependency; no additional test
-package is required. `npm run build` also type-checks the development preview.
+All frontend checks are in root `checks/frontend/`; the synthetic graph preview
+page and its development entry were removed. From the repository root run
+`python checks/run.py --suite frontend`, or use `npm test` from this directory.
+The checks reuse the existing TypeScript dependency. `npm run build` type-checks
+and builds the actual application. See [repository checks](../../checks/README.md).
 
 ## Website behavior
 
@@ -81,7 +77,7 @@ package is required. `npm run build` also type-checks the development preview.
   and arc. Hidden tabs suspend drawing. Workbench routes dim the same timeline;
   cached masks protect actual foreground glyphs. Canvas resolution is capped
   at 1.5 device pixels per CSS pixel, drawing at about 30 fps desktop / 20 fps mobile.
-- Run all checks with `node --test checks/*.test.mjs`: graph integrity, exact wei
+- Run all checks with `npm test`: graph integrity, exact wei
   formatting, explicit UTC conversion and complete non-repeating scene cycles.
 
 See [website visual implementation](../docs/WEBSITE_VISUAL_IMPLEMENTATION.md)

@@ -1,5 +1,12 @@
 # ETH real-data adapter with temporary scoring
 
+Current serving update (2026-10-26): real inference uses `ANALYSIS_MODE=eth_live`.
+The fixed mock and synthetic demo implementation/configuration have been removed
+after real cloud verification. Earlier implementation/run notes below are
+historical where they mention those modes. See the
+[model-service contract](MODEL_SERVICE_CONTRACT.md) and
+[backend setup](../backend/README.md).
+
 Serving revision (2026-10-25): the model server owns score-to-label policies;
 the backend validates and forwards returned labels. Input-only configuration now
 ships in `apps/backend/config/`; backend runtime does not include or import
@@ -147,8 +154,8 @@ successful score. Per-task model preparation failure preserves useful data.
 ## Verification
 
 ```bash
-.venv/bin/python -m unittest discover -s apps/backend/checks -v
-node --test apps/frontend/checks/*.test.mjs
+.venv/bin/python -m unittest discover -s checks/backend -v
+node --test checks/frontend/*.test.mjs
 npm --prefix apps/frontend run build
 ```
 

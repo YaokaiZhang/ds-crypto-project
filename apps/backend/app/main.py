@@ -1,4 +1,4 @@
-"""FastAPI application with optional analysis demo and independent live feed."""
+"""FastAPI application with real model-service analysis and independent live feed."""
 from contextlib import asynccontextmanager
 import time
 from fastapi import FastAPI, Request
@@ -16,13 +16,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI):
         application.state.container = build_container(settings)
-        if application.state.container.demo:
-            await application.state.container.demo.start()
         try:
             yield
         finally:
-            if application.state.container.demo:
-                await application.state.container.demo.close()
             application.state.container.close()
 
     application = FastAPI(title='Chainrisk API', version='0.1.0', lifespan=lifespan)

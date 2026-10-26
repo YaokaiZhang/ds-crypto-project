@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Start local API, durable ETH worker and Vite. All model scores are simulated."""
+"""Start local API, durable worker and Vite using the configured scoring mode."""
 import json
 import os
 import signal
@@ -14,7 +14,11 @@ RUNTIME = ROOT / '.runtime'
 RUNTIME.mkdir(exist_ok=True)
 RECORD = RUNTIME / 'eth-live-services.json'
 PYTHON = ROOT / '.venv/bin/python'
-ENV = {**os.environ, 'ANALYSIS_MODE': 'eth_live_mock', 'PYTHONUNBUFFERED': '1'}
+sys.path.insert(0, str(ROOT))
+from apps.backend.app.settings import server_credential
+
+MODE = server_credential('ANALYSIS_MODE') or 'eth_live'
+ENV = {**os.environ, 'ANALYSIS_MODE': MODE, 'PYTHONUNBUFFERED': '1'}
 SERVICES = {
     'api': [str(PYTHON), '-m', 'uvicorn', 'app.main:app', '--app-dir', 'apps/backend', '--host', '127.0.0.1', '--port', '8000'],
     'worker': [str(PYTHON), '-m', 'apps.backend.app.workers.analysis'],
@@ -65,11 +69,11 @@ def main():
     RECORD.write_text(json.dumps(current, indent=2) + '\n')
     for _ in range(100):
         try:
-            with urlopen('http://127.0.0.1:8000/api/v1/capabilities', timeout=1) as response:
+            with urlopen('http://127.0.0.1:8000/api/v1/capabilities', timeout=190) as response:
                 capability = json.load(response)
             with urlopen('http://127.0.0.1:5173/eth-scam', timeout=1) as response:
                 frontend_ok = response.status == 200
-            if capability.get('mode') == 'eth_live_mock' and capability.get('analysis_enabled') and frontend_ok:
+            if capability.get('mode') == MODE and capability.get('analysis_enabled') and frontend_ok:
                 print(json.dumps({'frontend': 'http://127.0.0.1:5173/eth-scam', 'api': 'http://127.0.0.1:8000/docs',
                                   'mode': capability['mode'], 'score_mode': capability['score_mode'],
                                   'pids': {name: row['pid'] for name, row in current.items()}}, indent=2))
